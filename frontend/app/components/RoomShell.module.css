@@ -1,0 +1,119 @@
+﻿.screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f3f5f8;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.phoneShell {
+  position: relative;
+  width: 390px;
+  max-width: 100%;
+  min-height: 812px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 34px;
+  border: 8px solid #05070d;
+  background:
+    radial-gradient(circle at top, rgba(39, 88, 175, 0.36), rgba(12, 26, 57, 0) 34%),
+    linear-gradient(180deg, #09142d 0%, #040914 100%);
+  color: #f3f7ff;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.32);
+}
+
+.topBar {
+  min-height: 92px;
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  padding: 28px 18px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(15, 31, 66, 0.96), rgba(11, 21, 43, 0.96));
+}
+
+.backButton {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #54a8ff;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.title {
+  margin: 0;
+  text-align: center;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #eef4ff;
+}
+
+.headerSpacer {
+  width: 40px;
+}
+
+.bottomNav {
+  height: 74px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  padding: 6px 6px 10px;
+  background: #f6f4ef;
+  border-top: 1px solid rgba(8, 23, 45, 0.12);
+}
+
+.navItem {
+  width: 100%;
+  min-height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #7f8694;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  appearance: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.navItemDisabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.navIcon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+@media (max-width: 520px) {
+  .screen {
+    padding: 0;
+    background:
+      radial-gradient(circle at top, rgba(39, 88, 175, 0.36), rgba(12, 26, 57, 0) 34%),
+      linear-gradient(180deg, #09142d 0%, #040914 100%);
+  }
+
+  .phoneShell {
+    width: 100vw;
+    max-width: 100vw;
+    min-height: 100vh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+}

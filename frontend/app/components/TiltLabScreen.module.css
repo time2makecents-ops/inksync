@@ -1,0 +1,1053 @@
+﻿.screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: #f3f5f8;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.phoneShell {
+  position: relative;
+  width: 390px;
+  max-width: 100%;
+  min-height: 812px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 34px;
+  border: 8px solid #05070d;
+  background:
+    radial-gradient(circle at top, rgba(39, 88, 175, 0.36), rgba(12, 26, 57, 0) 34%),
+    linear-gradient(180deg, #09142d 0%, #040914 100%);
+  color: #f3f7ff;
+  box-shadow: 0 28px 70px rgba(0, 0, 0, 0.32);
+}
+
+.topBar {
+  min-height: 92px;
+  display: grid;
+  grid-template-columns: 40px 1fr 40px;
+  align-items: center;
+  padding: 28px 18px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(15, 31, 66, 0.96), rgba(11, 21, 43, 0.96));
+}
+
+.headerTitle {
+  margin: 0;
+  text-align: center;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #eef4ff;
+}
+
+.backButton,
+.floatingCoachButton,
+.skillCard,
+.changeButton,
+.startButton,
+.navItem,
+.chatBackButton,
+.chatCloseButton,
+.chatReplyChip,
+.chatEmojiButton,
+.chatSendButton {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.backButton {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #54a8ff;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.headerSpacer {
+  width: 40px;
+}
+
+.content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 14px 14px 166px;
+  display: grid;
+  gap: 12px;
+}
+
+.heroCard,
+.sectionCard,
+.lessonsSection {
+  position: relative;
+  border-radius: 18px;
+  border: 1px solid rgba(117, 148, 211, 0.2);
+  background: linear-gradient(180deg, rgba(18, 34, 69, 0.96), rgba(9, 18, 38, 0.98));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+}
+
+.heroCard {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr);
+  gap: 10px 12px;
+  padding: 12px 14px 14px;
+  overflow: hidden;
+  align-items: start;
+}
+
+.heroArt {
+  position: relative;
+  min-height: 116px;
+  align-self: start;
+}
+
+.heroContent {
+  min-width: 0;
+  padding-top: 6px;
+  padding-right: 66px;
+}
+
+.heroTitle {
+  font-size: 20px;
+  font-weight: 800;
+  color: #f4f7ff;
+}
+
+.heroSubtitle {
+  margin-top: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #49aaff;
+}
+
+.heroMessage {
+  margin-top: 12px;
+  color: #d2dcee;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.heroBubble {
+  grid-column: 1 / -1;
+  margin-top: 14px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(33, 52, 95, 0.92);
+  color: #d9e7ff;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.lessonRow {
+  grid-column: 1 / -1;
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lessonText,
+.lessonPercent {
+  font-size: 11px;
+  font-weight: 700;
+  color: #d7e2f4;
+}
+
+.lessonPercent {
+  color: #c1cce2;
+  white-space: nowrap;
+}
+
+.progressTrack {
+  grid-column: 1 / -1;
+  margin-top: 8px;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.progressFill {
+  width: 40%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #1f8fff 0%, #2f6dff 100%);
+}
+
+.floatingCoachLayer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.floatingCoachButton {
+  position: fixed;
+  top: 72px;
+  right: max(15px, calc((100vw - 390px) / 2 + 15px));
+  z-index: 41;
+  pointer-events: auto;
+  width: 62px;
+  height: 62px;
+  padding: 0;
+  border: 1px solid rgba(139, 196, 255, 0.55);
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 30%, rgba(94, 178, 255, 0.85), rgba(19, 54, 122, 0.98));
+  box-shadow: 0 0 0 3px rgba(139, 196, 255, 0.18), 0 0 24px rgba(58, 146, 255, 0.32);
+}
+
+.floatingCoachAvatar {
+  position: absolute;
+  inset: 5px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 35%, rgba(10, 19, 42, 0.9), rgba(4, 10, 24, 0.98));
+}
+
+.sectionCard,
+.lessonsSection {
+  padding: 14px;
+}
+
+.sectionHeading {
+  color: #f3f7ff;
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.skillGrid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.skillCard {
+  min-width: 0;
+  min-height: 46px;
+  padding: 0 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(112, 140, 198, 0.18);
+  background: rgba(18, 33, 64, 0.9);
+  text-align: center;
+  color: #dce7ff;
+  overflow: hidden;
+  display: grid;
+  align-content: center;
+}
+
+.skillCardActive {
+  background: linear-gradient(180deg, rgba(50, 95, 190, 0.95), rgba(34, 67, 145, 0.95));
+  border-color: rgba(118, 175, 255, 0.55);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 0 1px rgba(85, 155, 255, 0.2);
+}
+
+.skillLabelRow {
+  display: block;
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: normal;
+  overflow: visible;
+  text-overflow: initial;
+  letter-spacing: 0;
+}
+
+.skillDescription {
+  margin-top: 10px;
+  color: #a7bbde;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+
+.gameSection,
+.infoSection {
+  display: grid;
+  gap: 10px;
+}
+
+.gameInputAreaFull {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.gameInputShell {
+  position: relative;
+}
+
+.gameInputOverlay {
+  position: absolute;
+  left: 13px;
+  top: 21px;
+  transform: translateY(-50%);
+  z-index: 5;
+  pointer-events: none;
+  color: #9db1d1;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+.gameInputOverlay em {
+  font-style: italic;
+  opacity: 0.88;
+}
+
+.gameActionRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.gameActionButton {
+  min-height: 32px;
+  padding: 0 14px;
+  flex: 1 1 110px;
+  border: 1px solid rgba(112, 140, 198, 0.2);
+  border-radius: 999px;
+  background: rgba(18, 33, 64, 0.9);
+  color: #cfe0ff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.gamePickerPopover {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(112, 140, 198, 0.18);
+  background: rgba(11, 21, 43, 0.96);
+}
+
+.gamePickerTitle {
+  color: #dce7ff;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.gamePickerList {
+  display: grid;
+  gap: 6px;
+}
+
+.gamePickerItem {
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid rgba(112, 140, 198, 0.16);
+  border-radius: 12px;
+  background: rgba(18, 33, 64, 0.82);
+  color: #edf4ff;
+  font-size: 13px;
+  font-weight: 700;
+  text-align: left;
+}
+
+.gameNameField {
+  position: relative;
+  z-index: 1;
+}
+
+
+.infoHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.infoIcon {
+  position: relative;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+}
+
+.infoText {
+  color: #b5caeb;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.bulletGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 16px;
+}
+
+.bulletItem {
+  position: relative;
+  padding-left: 16px;
+  color: #dce7ff;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.bulletItem::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 5px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #41a6ff 0%, #2462ff 100%);
+  box-shadow: 0 0 0 2px rgba(67, 137, 255, 0.16);
+}
+
+.lessonsHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.lessonCount {
+  color: #8397bc;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lessonsList {
+  display: grid;
+  gap: 8px;
+  max-height: 284px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.lessonItem {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 12px 12px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(103, 130, 183, 0.12);
+  background: rgba(8, 17, 37, 0.9);
+}
+
+.lessonNumber {
+  width: 32px;
+  height: 32px;
+  border-radius: 11px;
+  background: rgba(22, 55, 117, 0.78);
+  color: #58a6ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.lessonBody {
+  min-width: 0;
+}
+
+.lessonTitle {
+  color: #f1f6ff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.lessonDescription {
+  margin-top: 3px;
+  color: #7f95b9;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.lessonStatus {
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.lessonStatusCompleted {
+  color: #7ae552;
+}
+
+.lessonStatusProgress {
+  color: #8fc1ff;
+}
+
+.lessonStatusLocked {
+  color: #7b88a3;
+}
+
+.lessonStatusAvailable {
+  color: #8fc1ff;
+}
+
+.ctaDock {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 74px;
+  padding: 0 14px 12px;
+  background: linear-gradient(180deg, rgba(4, 9, 20, 0), rgba(4, 9, 20, 0.98) 32%);
+}
+
+.startButton {
+  width: 100%;
+  min-height: 60px;
+  border: 0;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #2fc64a 0%, #118e26 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), 0 10px 20px rgba(16, 90, 25, 0.28);
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 2px;
+  color: #ffffff;
+}
+
+.startTitle {
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.startSubtitle {
+  color: rgba(232, 255, 233, 0.84);
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.bottomNav {
+  height: 74px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  align-items: center;
+  padding: 6px 6px 10px;
+  background: linear-gradient(180deg, rgba(14, 30, 57, 0.96), rgba(8, 18, 35, 0.98));
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.navItem {
+  width: 100%;
+  min-height: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #8b93a5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  appearance: none;
+}
+
+.navItemActive {
+  color: #3ca4ff;
+}
+
+.navIcon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.chatOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 14px;
+}
+
+.chatBackdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(2, 8, 20, 0.6);
+  backdrop-filter: blur(3px);
+}
+
+.chatPanel {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 358px;
+  height: min(775px, calc(100vh - 90px));
+  min-height: 775px;
+  max-height: calc(100vh - 90px);
+  border-radius: 22px;
+  border: 1px solid rgba(113, 156, 230, 0.32);
+  background:
+    radial-gradient(circle at top, rgba(45, 92, 168, 0.22), rgba(11, 21, 43, 0) 34%),
+    linear-gradient(180deg, rgba(14, 28, 59, 0.98), rgba(7, 14, 29, 0.98));
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.38);
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chatHeader {
+  display: grid;
+  grid-template-columns: 36px 1fr 52px;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid rgba(144, 177, 234, 0.16);
+  background: linear-gradient(180deg, rgba(28, 54, 102, 0.95), rgba(18, 35, 71, 0.95));
+}
+
+.chatBackButton {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #8fc2ff;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.chatHeaderTitle {
+  text-align: center;
+  font-size: 18px;
+  font-weight: 800;
+  color: #f4f7ff;
+}
+
+.chatHeaderAvatar,
+.chatCoachAvatar {
+  position: relative;
+  overflow: hidden;
+  border-radius: 50%;
+  border: 1px solid rgba(109, 175, 255, 0.42);
+  box-shadow: 0 0 0 3px rgba(67, 126, 210, 0.18);
+  background: radial-gradient(circle at 50% 35%, rgba(10, 19, 42, 0.9), rgba(4, 10, 24, 0.98));
+}
+
+.chatHeaderAvatar {
+  width: 52px;
+  height: 52px;
+}
+
+.chatCoachRow {
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr) 28px;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border-bottom: 1px solid rgba(144, 177, 234, 0.1);
+}
+
+.chatCoachAvatar {
+  width: 56px;
+  height: 56px;
+}
+
+.chatCoachName {
+  font-size: 18px;
+  font-weight: 800;
+  color: #f3f7ff;
+}
+
+.chatCoachRole {
+  margin-top: 2px;
+  font-size: 14px;
+  color: #56afff;
+}
+
+.chatCloseButton {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: #8fb7ff;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.chatThread {
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: grid;
+  gap: 10px;
+  padding: 12px 12px 10px;
+  scrollbar-width: thin;
+}
+
+.chatMessageWrap {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  min-width: 0;
+}
+
+.chatMessageWrapUser {
+  justify-items: end;
+}
+
+.chatBubble {
+  min-width: 0;
+  max-width: 82%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(24, 41, 76, 0.95);
+  color: #d9e7ff;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.chatBubbleUser {
+  background: linear-gradient(180deg, rgba(52, 104, 191, 0.95), rgba(31, 76, 158, 0.95));
+  color: #f6fbff;
+}
+
+.chatTime {
+  padding: 0 4px;
+  font-size: 11px;
+  color: #7e93b9;
+}
+
+.chatReplies {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  padding: 0 12px 10px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.chatReplyChip {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(108, 141, 206, 0.22);
+  background: rgba(20, 35, 66, 0.92);
+  color: #c5d9ff;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.chatComposer {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr) 38px;
+  gap: 8px;
+  align-items: center;
+  padding: 0 12px 12px;
+}
+
+.chatComposer input {
+  width: 100%;
+  min-width: 0;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(108, 141, 206, 0.2);
+  background: rgba(17, 31, 60, 0.98);
+  color: #edf4ff;
+  font-size: 14px;
+  outline: 0;
+}
+
+.chatComposer input::placeholder {
+  color: #7f93bb;
+}
+
+.chatEmojiButton,
+.chatSendButton {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(108, 141, 206, 0.18);
+  background: rgba(18, 34, 66, 0.98);
+  color: #8dc6ff;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.chatSendButton {
+  background: linear-gradient(180deg, #2877f0 0%, #1f60d6 100%);
+  color: #ffffff;
+}
+
+.chatReplies::-webkit-scrollbar {
+  display: none;
+}
+
+.trainerSection {
+  display: grid;
+  gap: 12px;
+}
+
+.trainerHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.trainerSubheading {
+  margin-top: 4px;
+  color: #98afd5;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.trainerBadge {
+  min-width: 76px;
+  min-height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.trainerBadgeReady {
+  background: rgba(31, 173, 92, 0.16);
+  color: #7ce9a7;
+  border: 1px solid rgba(92, 219, 139, 0.25);
+}
+
+.trainerBadgeBlocked {
+  background: rgba(184, 126, 24, 0.16);
+  color: #ffd57f;
+  border: 1px solid rgba(255, 193, 74, 0.22);
+}
+
+.trainerControls {
+  display: flex;
+  gap: 8px;
+}
+
+.trainerButton,
+.trainerButtonSecondary {
+  min-height: 38px;
+  padding: 0 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.trainerButton {
+  border: 0;
+  color: #ffffff;
+  background: linear-gradient(180deg, #3d9cff 0%, #2467df 100%);
+}
+
+.trainerButtonSecondary {
+  border: 1px solid rgba(112, 140, 198, 0.22);
+  background: rgba(18, 33, 64, 0.92);
+  color: #d8e6ff;
+}
+
+.trainerStatusCard,
+.trainerMeterCard,
+.trainerFeedbackCard {
+  border-radius: 14px;
+  border: 1px solid rgba(112, 140, 198, 0.16);
+  background: rgba(10, 20, 42, 0.86);
+}
+
+.trainerStatusCard,
+.trainerMeterCard {
+  padding: 12px;
+}
+
+.trainerStatusLine {
+  color: #eef5ff;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.trainerMetaRow {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+  color: #90a7cc;
+  font-size: 11px;
+}
+
+.trainerMeterLabels {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #97add1;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.trainerMeterTrack {
+  position: relative;
+  margin-top: 10px;
+  height: 18px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(47, 94, 168, 0.3), rgba(25, 45, 84, 0.85) 50%, rgba(47, 94, 168, 0.3));
+  overflow: hidden;
+}
+
+.trainerMeterCenterLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: rgba(236, 245, 255, 0.55);
+}
+
+.trainerMeterFill {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: 999px;
+  transition: width 120ms ease, left 120ms ease, right 120ms ease;
+}
+
+.trainerMeterFillCentered {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.trainerMeterFillLeft {
+  right: 50%;
+}
+
+.trainerMeterFillRight {
+  left: 50%;
+}
+
+.trainerMeterFillIdle {
+  background: linear-gradient(90deg, rgba(122, 147, 188, 0.65), rgba(146, 167, 206, 0.9));
+}
+
+.trainerMeterFillLight {
+  background: linear-gradient(90deg, #6fb8ff 0%, #4b90ff 100%);
+}
+
+.trainerMeterFillControlled {
+  background: linear-gradient(90deg, #48d57b 0%, #22b95a 100%);
+}
+
+.trainerMeterFillHard {
+  background: linear-gradient(90deg, #ff9f4b 0%, #ff5c44 100%);
+}
+
+.trainerReadoutRow {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.trainerReadout,
+.trainerFeedbackCard {
+  min-width: 0;
+}
+
+.trainerReadout {
+  display: grid;
+  gap: 4px;
+}
+
+.trainerReadout strong,
+.trainerFeedbackCard strong {
+  color: #f3f8ff;
+  font-size: 14px;
+}
+
+.trainerLabel {
+  color: #89a0c6;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.trainerFeedbackGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.trainerFeedbackCard {
+  padding: 12px;
+}
+
+.trainerFeedbackCard p {
+  margin: 6px 0 0;
+  color: #9bb1d5;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+
+.handednessPromptActions {
+  display: grid;
+  gap: 10px;
+  padding: 0 12px 14px;
+}
+
+.handednessPromptButton {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(108, 141, 206, 0.22);
+  background: rgba(20, 35, 66, 0.96);
+  color: #e5efff;
+  font-size: 14px;
+  font-weight: 800;
+  text-align: center;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+@media (max-width: 520px) {
+  .phoneShell {
+    width: 100vw;
+    max-width: 100vw;
+    min-height: 100vh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
+
+  .floatingCoachButton {
+    top: 24px;
+  }
+}

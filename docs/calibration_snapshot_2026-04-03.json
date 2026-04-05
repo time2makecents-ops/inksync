@@ -1,0 +1,18 @@
+{
+  "mode": "single",
+  "source_image": "C:\\inksync\\signed_card.png",
+  "readiness": "safe",
+  "overall_confidence": 84.1,
+  "alignment_confidence": 97.8,
+  "sharpness_confidence": 100.0,
+  "brightness_confidence": 0.0,
+  "signature_confidence": 100.0,
+  "alignment_score_raw": 0.9784,
+  "sharpness_raw": 691.53,
+  "brightness_raw": 207.49,
+  "signature_pixels_raw": 252008,
+  "extracted_signature_path": "C:\\inksync\\output\\extracted_signature.png",
+  "final_card_path": "C:\\inksync\\output\\final_card.png",
+  "aligned_card_path": "C:\\inksync\\output\\aligned_signed_card.png",
+  "preview_path": "C:\\inksync\\output\\calibration_preview.png"
+}

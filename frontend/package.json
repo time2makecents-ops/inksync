@@ -1,0 +1,19 @@
+{
+  "name": "flipperiq-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "clean": "node -e \"require('fs').rmSync('.next',{recursive:true,force:true})\"",
+    "dev": "next dev --port 3215",
+    "serve:https": "node server.mjs",
+    "dev:https": "npm run clean && npm run build && npm run serve:https",
+    "build": "next build",
+    "start": "next start --port 3215",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "15.3.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0"
+  }
+}
