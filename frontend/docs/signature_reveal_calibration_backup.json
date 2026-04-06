@@ -1,0 +1,120 @@
+{
+  "sourceWidth": 1080,
+  "sourceHeight": 1920,
+  "activeFrame": "frame_03_5",
+  "frameOverlay": {
+    "x": 451.00299999999993,
+    "y": 1068.9920000000002,
+    "width": 230,
+    "height": 94,
+    "rotation": 22.75
+  },
+  "frames": {
+    "frame_03_0": {
+      "x": 374,
+      "y": 1026,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_03_5": {
+      "x": 451.00299999999993,
+      "y": 1068.9920000000002,
+      "width": 230,
+      "height": 94,
+      "rotation": 22.75
+    },
+    "frame_04_0": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_04_5": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_05_0": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_05_5": {
+      "x": 404,
+      "y": 1159,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_06_0": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_06_5": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_07_0": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_07_5": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_08_0": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_08_5": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_09_0": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_09_5": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    },
+    "frame_10_0": {
+      "x": 388,
+      "y": 1136,
+      "width": 230,
+      "height": 94,
+      "rotation": 0
+    }
+  },
+  "updatedAt": "2026-04-06T21:12:32.409Z"
+}

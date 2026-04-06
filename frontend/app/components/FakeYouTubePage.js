@@ -4,22 +4,17 @@ import { useEffect, useRef, useState } from "react";
 
 const SIGNATURE_CONFIG = {
   overlayStartTime: 3.0,
-  startTime: 3.0,
-  duration: 1.6,
-  trackingStartTime: 3.0,
-  cardWidth: 18.4,
+  startTime: 7.0,
+  duration: 2.0,
+  fallbackPose: {
+    x: 45.75,
+    y: 67.15,
+    width: 18.4,
+    height: 13.5,
+    rotation: -11.5,
+  },
   assetRotation: 90,
   opacity: 0.96,
-  initialPose: {
-    left: 45.75,
-    top: 67.15,
-    rotation: -11.5,
-  },
-  trackedPose: {
-    left: 45.75,
-    top: 67.15,
-    rotation: -11.5,
-  },
   signatureImage: {
     offsetX: 0.8,
     offsetY: 6.8,
@@ -211,6 +206,67 @@ function RecommendationCard({ video }) {
   );
 }
 
+function frameIdToSeconds(frameId) {
+  const match = /^frame_(\d+)_(\d+)$/.exec(frameId);
+  if (!match) {
+    return null;
+  }
+
+  return Number.parseInt(match[1], 10) + Number.parseInt(match[2], 10) / 10;
+}
+
+function normalizePose(pose) {
+  if (!pose || typeof pose !== "object") {
+    return null;
+  }
+
+  const x = Number.parseFloat(pose.x);
+  const y = Number.parseFloat(pose.y);
+  const width = Number.parseFloat(pose.width);
+  const height = Number.parseFloat(pose.height);
+  const rotation = Number.parseFloat(pose.rotation);
+
+  if (![x, y, width, height, rotation].every(Number.isFinite)) {
+    return null;
+  }
+
+  return { x, y, width, height, rotation };
+}
+
+function getPoseAtTime(points, timeSeconds) {
+  if (!points.length) {
+    return null;
+  }
+
+  if (timeSeconds <= points[0].time) {
+    return points[0].pose;
+  }
+
+  if (timeSeconds >= points[points.length - 1].time) {
+    return points[points.length - 1].pose;
+  }
+
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const current = points[index];
+    const next = points[index + 1];
+    if (timeSeconds < current.time || timeSeconds > next.time) {
+      continue;
+    }
+
+    const span = next.time - current.time;
+    const progress = span > 0 ? (timeSeconds - current.time) / span : 0;
+    return {
+      x: current.pose.x + (next.pose.x - current.pose.x) * progress,
+      y: current.pose.y + (next.pose.y - current.pose.y) * progress,
+      width: current.pose.width + (next.pose.width - current.pose.width) * progress,
+      height: current.pose.height + (next.pose.height - current.pose.height) * progress,
+      rotation: current.pose.rotation + (next.pose.rotation - current.pose.rotation) * progress,
+    };
+  }
+
+  return points[0].pose;
+}
+
 export default function FakeYouTubePage() {
   const videoRef = useRef(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -219,6 +275,7 @@ export default function FakeYouTubePage() {
   const [isReady, setIsReady] = useState(false);
   const [showOverlayGuide, setShowOverlayGuide] = useState(false);
   const [forceReveal, setForceReveal] = useState(false);
+  const [calibrationPoints, setCalibrationPoints] = useState([]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -247,6 +304,48 @@ export default function FakeYouTubePage() {
       video.removeEventListener("play", handlePlay);
       video.removeEventListener("pause", handlePause);
       video.removeEventListener("ended", handleEnded);
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadCalibration() {
+      try {
+        const response = await fetch("/api/overlay-calibration-backup", { cache: "no-store" });
+        if (!response.ok) {
+          return;
+        }
+
+        const payload = await response.json();
+        if (cancelled || !payload?.frames || typeof payload.frames !== "object") {
+          return;
+        }
+
+        const points = Object.entries(payload.frames)
+          .map(([frameId, pose]) => {
+            const time = frameIdToSeconds(frameId);
+            const normalized = normalizePose(pose);
+            if (!Number.isFinite(time) || !normalized) {
+              return null;
+            }
+
+            return { frameId, time, pose: normalized };
+          })
+          .filter(Boolean)
+          .sort((left, right) => left.time - right.time);
+
+        setCalibrationPoints(points);
+      } catch {
+        if (!cancelled) {
+          setCalibrationPoints([]);
+        }
+      }
+    }
+
+    loadCalibration();
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -283,10 +382,6 @@ export default function FakeYouTubePage() {
   }
 
   const progress = duration > 0 ? currentTime / duration : 0;
-  const trackingProgress = Math.max(
-    0,
-    Math.min(1, (currentTime - SIGNATURE_CONFIG.trackingStartTime) / 1.25)
-  );
   const revealProgress = forceReveal
     ? 1
     : Math.max(
@@ -301,17 +396,7 @@ export default function FakeYouTubePage() {
     100,
     revealProgress * 100 + 8
   )}%)`;
-  const pose = {
-    left:
-      SIGNATURE_CONFIG.initialPose.left +
-      (SIGNATURE_CONFIG.trackedPose.left - SIGNATURE_CONFIG.initialPose.left) * trackingProgress,
-    top:
-      SIGNATURE_CONFIG.initialPose.top +
-      (SIGNATURE_CONFIG.trackedPose.top - SIGNATURE_CONFIG.initialPose.top) * trackingProgress,
-    rotation:
-      SIGNATURE_CONFIG.initialPose.rotation +
-      (SIGNATURE_CONFIG.trackedPose.rotation - SIGNATURE_CONFIG.initialPose.rotation) * trackingProgress,
-  };
+  const pose = getPoseAtTime(calibrationPoints, currentTime) ?? SIGNATURE_CONFIG.fallbackPose;
   const overlayEnabled = currentTime >= SIGNATURE_CONFIG.overlayStartTime || forceReveal;
 
   return (
@@ -367,9 +452,10 @@ export default function FakeYouTubePage() {
                 <div
                   className="signatureCardFrame"
                   style={{
-                    left: `${pose.left}%`,
-                    top: `${pose.top}%`,
-                    width: `${SIGNATURE_CONFIG.cardWidth}%`,
+                    left: `${pose.x}%`,
+                    top: `${pose.y}%`,
+                    width: `${pose.width}%`,
+                    height: `${pose.height}%`,
                     transform: `translate(-50%, -50%) rotate(${pose.rotation}deg)`,
                   }}
                 >
@@ -455,8 +541,8 @@ export default function FakeYouTubePage() {
                 Reveal starts at {SIGNATURE_CONFIG.startTime.toFixed(1)}s for {SIGNATURE_CONFIG.duration.toFixed(1)}s
               </div>
               <div className="debugText">
-                Signature shift {SIGNATURE_CONFIG.signatureImage.offsetX}% / {SIGNATURE_CONFIG.signatureImage.offsetY}% |
-                scale {SIGNATURE_CONFIG.signatureImage.scale.toFixed(2)}
+                Calibrated keyframes {calibrationPoints.length} |
+                signature shift {SIGNATURE_CONFIG.signatureImage.offsetX}% / {SIGNATURE_CONFIG.signatureImage.offsetY}%
               </div>
             </div>
 

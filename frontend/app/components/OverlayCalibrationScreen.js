@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
   getStoredOverlayCalibration,
+  getStoredSignatureRevealCalibration,
   setStoredOverlayCalibration,
+  setStoredSignatureRevealCalibration,
 } from "../../lib/userPreferences";
 
 const SOURCE_ASPECT_RATIO = 612 / 465;
@@ -18,6 +20,10 @@ const MIN_OVERLAY_SIZE = 12;
 const HANDLE_GAP = 15;
 const ROTATE_HANDLE_GAP = 30;
 const HANDLE_SIZE = 12;
+const REVEAL_SPEED_STEP = 0.05;
+const REVEAL_MIN_SPEED = 0.05;
+const REVEAL_MAX_SPEED = 3;
+const REVEAL_VISIBILITY_STEP = 0.05;
 const TARGET_FRAME_OVERLAYS = {
   frame_08_0: {
     x: 370,
@@ -81,16 +87,21 @@ function normalizeOverlay(overlay) {
   };
 }
 
-export default function OverlayCalibrationScreen() {
+export default function OverlayCalibrationScreen({ mode = "overlay" }) {
   const stageRef = useRef(null);
   const dragStateRef = useRef(null);
   const [frames, setFrames] = useState([]);
   const [frameId, setFrameId] = useState(DEFAULT_FRAME_ID);
   const [sourceSize, setSourceSize] = useState({ width: 1080, height: 1920 });
+  const [cardGuideByFrame, setCardGuideByFrame] = useState({});
   const [overlaysByFrame, setOverlaysByFrame] = useState({});
   const [status, setStatus] = useState("Loading reference frames...");
   const [zoom, setZoom] = useState(1);
   const [stepSize, setStepSize] = useState(1);
+  const [revealProgress, setRevealProgress] = useState(0);
+  const [revealSpeed, setRevealSpeed] = useState(0.45);
+  const [isRevealRunning, setIsRevealRunning] = useState(false);
+  const isRevealMode = mode === "reveal";
 
   useEffect(() => {
     let cancelled = false;
@@ -109,7 +120,9 @@ export default function OverlayCalibrationScreen() {
           height: payload.sourceHeight ?? 1920,
         });
 
-        const stored = getStoredOverlayCalibration();
+        const stored = isRevealMode
+          ? getStoredSignatureRevealCalibration()
+          : getStoredOverlayCalibration();
         if (stored?.frames && typeof stored.frames === "object") {
           const normalizedFrames = Object.fromEntries(
             Object.entries(stored.frames).map(([key, value]) => [key, normalizeOverlay(value)])
@@ -118,7 +131,10 @@ export default function OverlayCalibrationScreen() {
         }
 
         try {
-          const backupResponse = await fetch("/api/overlay-calibration-backup", { cache: "no-store" });
+          const backupResponse = await fetch(
+            isRevealMode ? "/api/signature-reveal-calibration-backup" : "/api/overlay-calibration-backup",
+            { cache: "no-store" }
+          );
           if (backupResponse.ok) {
             const backupPayload = await backupResponse.json();
             if (backupPayload?.frames && typeof backupPayload.frames === "object") {
@@ -132,13 +148,30 @@ export default function OverlayCalibrationScreen() {
           // Ignore backup load failures; localStorage still works.
         }
 
-        setOverlaysByFrame((current) => {
-          const next = { ...current };
-          for (const [targetFrameId, targetOverlay] of Object.entries(TARGET_FRAME_OVERLAYS)) {
-            next[targetFrameId] = normalizeOverlay(targetOverlay);
+        if (isRevealMode) {
+          try {
+            const guideResponse = await fetch("/api/overlay-calibration-backup", { cache: "no-store" });
+            if (guideResponse.ok) {
+              const guidePayload = await guideResponse.json();
+              if (guidePayload?.frames && typeof guidePayload.frames === "object") {
+                const guideFrames = Object.fromEntries(
+                  Object.entries(guidePayload.frames).map(([key, value]) => [key, normalizeOverlay(value)])
+                );
+                setCardGuideByFrame(guideFrames);
+              }
+            }
+          } catch {
+            // Ignore guide load failures; the fallback target frames still render.
           }
-          return next;
-        });
+        } else {
+          setOverlaysByFrame((current) => {
+            const next = { ...current };
+            for (const [targetFrameId, targetOverlay] of Object.entries(TARGET_FRAME_OVERLAYS)) {
+              next[targetFrameId] = normalizeOverlay(targetOverlay);
+            }
+            return next;
+          });
+        }
         setStepSize(0.001);
 
         if (payload.frames?.length) {
@@ -172,15 +205,52 @@ export default function OverlayCalibrationScreen() {
       updatedAt: new Date().toISOString(),
     };
 
-    setStoredOverlayCalibration(snapshot);
-    fetch("/api/overlay-calibration-backup", {
+    if (isRevealMode) {
+      setStoredSignatureRevealCalibration(snapshot);
+    } else {
+      setStoredOverlayCalibration(snapshot);
+    }
+
+    fetch(isRevealMode ? "/api/signature-reveal-calibration-backup" : "/api/overlay-calibration-backup", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(snapshot),
     }).catch(() => {});
-  }, [overlaysByFrame, sourceSize.height, sourceSize.width]);
+  }, [isRevealMode, overlaysByFrame, sourceSize.height, sourceSize.width]);
+
+  useEffect(() => {
+    if (!isRevealMode || !isRevealRunning) {
+      return undefined;
+    }
+
+    let lastTimestamp = null;
+    let rafId = null;
+
+    function tick(timestamp) {
+      if (lastTimestamp === null) {
+        lastTimestamp = timestamp;
+      }
+
+      const deltaSeconds = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      setRevealProgress((current) => {
+        const next = Math.min(1, current + deltaSeconds * revealSpeed);
+        return next;
+      });
+
+      rafId = window.requestAnimationFrame(tick);
+    }
+
+    rafId = window.requestAnimationFrame(tick);
+    return () => {
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
+    };
+  }, [isRevealMode, isRevealRunning, revealSpeed]);
 
   const currentFrame = useMemo(
     () => frames.find((frame) => frame.id === frameId) ?? null,
@@ -188,6 +258,22 @@ export default function OverlayCalibrationScreen() {
   );
 
   const overlay = normalizeOverlay(overlaysByFrame[frameId] ?? DEFAULT_OVERLAY);
+  const cardGuide = useMemo(() => {
+    if (!isRevealMode) {
+      return null;
+    }
+
+    return normalizeOverlay(
+      cardGuideByFrame[frameId] ?? TARGET_FRAME_OVERLAYS[frameId] ?? DEFAULT_OVERLAY
+    );
+  }, [cardGuideByFrame, frameId, isRevealMode]);
+  const pageTitle = isRevealMode ? "Signature Reveal Calibration" : "Overlay Calibration";
+  const pageSubtitle = isRevealMode
+    ? "Tune the BoB signature reveal against the sampled magician frames."
+    : "Line up the dotted card box against the magician card";
+  const signatureLayer = isRevealMode
+    ? overlay
+    : null;
 
   function updateOverlay(updater) {
     setOverlaysByFrame((current) => {
@@ -225,15 +311,39 @@ export default function OverlayCalibrationScreen() {
 
   function resize(delta) {
     updateOverlay((current) => ({
-      ...current,
-      width: clamp(current.width + delta * stepSize, 40, sourceSize.width),
+      ...(isRevealMode
+        ? (() => {
+            const nextWidth = clamp(current.width + delta * stepSize, 40, sourceSize.width);
+            const centerX = current.x + current.width / 2;
+            return {
+              ...current,
+              width: nextWidth,
+              x: clamp(centerX - nextWidth / 2, 0, sourceSize.width - nextWidth),
+            };
+          })()
+        : {
+            ...current,
+            width: clamp(current.width + delta * stepSize, 40, sourceSize.width),
+          }),
     }));
   }
 
   function resizeHeight(delta) {
     updateOverlay((current) => ({
-      ...current,
-      height: clamp(current.height + delta * stepSize, 40, sourceSize.height),
+      ...(isRevealMode
+        ? (() => {
+            const nextHeight = clamp(current.height + delta * stepSize, 40, sourceSize.height);
+            const centerY = current.y + current.height / 2;
+            return {
+              ...current,
+              height: nextHeight,
+              y: clamp(centerY - nextHeight / 2, 0, sourceSize.height - nextHeight),
+            };
+          })()
+        : {
+            ...current,
+            height: clamp(current.height + delta * stepSize, 40, sourceSize.height),
+          }),
     }));
   }
 
@@ -242,6 +352,49 @@ export default function OverlayCalibrationScreen() {
       ...current,
       rotation: Math.round((current.rotation + delta) * 100) / 100,
     }));
+  }
+
+  function startReveal() {
+    if (!isRevealMode) {
+      return;
+    }
+
+    setRevealProgress(0);
+    setIsRevealRunning(false);
+  }
+
+  function pauseReveal() {
+    if (!isRevealMode) {
+      return;
+    }
+
+    setIsRevealRunning(false);
+  }
+
+  function resetReveal() {
+    if (!isRevealMode) {
+      return;
+    }
+
+    setIsRevealRunning(false);
+    setRevealProgress(0);
+  }
+
+  function adjustRevealSpeed(delta) {
+    if (!isRevealMode) {
+      return;
+    }
+
+    setRevealSpeed((current) => clamp(Math.round((current + delta) * 100) / 100, REVEAL_MIN_SPEED, REVEAL_MAX_SPEED));
+  }
+
+  function adjustRevealVisibility(delta) {
+    if (!isRevealMode) {
+      return;
+    }
+
+    setIsRevealRunning(false);
+    setRevealProgress((current) => clamp(Math.round((current + delta) * 100) / 100, 0, 1));
   }
 
   function resetCurrentFrame() {
@@ -418,6 +571,13 @@ export default function OverlayCalibrationScreen() {
     null,
     2
   );
+  const signatureRevealMask = `linear-gradient(90deg, rgba(0, 0, 0, 1) ${Math.max(
+    0,
+    revealProgress * 100 - 12
+  )}%, rgba(0, 0, 0, 0.88) ${Math.max(0, revealProgress * 100 - 3)}%, rgba(0, 0, 0, 0) ${Math.min(
+    100,
+    revealProgress * 100 + 8
+  )}%)`;
 
   const handlePositions = [
     {
@@ -472,8 +632,8 @@ export default function OverlayCalibrationScreen() {
         <section className="stageCard">
           <div className="sectionHead">
             <div>
-              <div className="eyebrow">Overlay Calibration</div>
-              <h1>Line up the dotted card box against the magician card</h1>
+              <div className="eyebrow">{pageTitle}</div>
+              <h1>{pageSubtitle}</h1>
             </div>
             <div className="status">{status}</div>
           </div>
@@ -509,48 +669,107 @@ export default function OverlayCalibrationScreen() {
                   }}
                 >
                   <img className="referenceFrame" src={currentFrame.src} alt={`Reference ${currentFrame.label}`} />
-                  <div
-                    className="overlayBox"
-                    onPointerDown={beginMove}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
-                    onPointerCancel={handlePointerUp}
-                    style={{
-                      left: `${(overlay.x / sourceSize.width) * 100}%`,
-                      top: `${(overlay.y / sourceSize.height) * 100}%`,
-                      width: `${(overlay.width / sourceSize.width) * 100}%`,
-                      height: `${(overlay.height / sourceSize.height) * 100}%`,
-                      transform: `rotate(${overlay.rotation}deg)`,
-                    }}
-                  />
-                  {handlePositions.map((handle) => (
+                  {isRevealMode && cardGuide ? (
                     <div
-                      key={handle.key}
-                      className={`resizeHandle ${handle.className}`}
-                      onPointerDown={(event) => beginResize(handle.edge, event)}
+                      className="cardGuideBox"
+                      style={{
+                        left: `${(cardGuide.x / sourceSize.width) * 100}%`,
+                        top: `${(cardGuide.y / sourceSize.height) * 100}%`,
+                        width: `${(cardGuide.width / sourceSize.width) * 100}%`,
+                        height: `${(cardGuide.height / sourceSize.height) * 100}%`,
+                        transform: `rotate(${cardGuide.rotation}deg)`,
+                      }}
+                    />
+                  ) : null}
+                  {isRevealMode && signatureLayer ? (
+                    <div
+                      className="signatureStageLayer overlayBox signatureEditBox"
+                      onPointerDown={beginMove}
                       onPointerMove={handlePointerMove}
                       onPointerUp={handlePointerUp}
                       onPointerCancel={handlePointerUp}
                       style={{
-                        cursor: handle.cursor,
-                        ...handle.style,
+                        left: `${(signatureLayer.x / sourceSize.width) * 100}%`,
+                        top: `${(signatureLayer.y / sourceSize.height) * 100}%`,
+                        width: `${(signatureLayer.width / sourceSize.width) * 100}%`,
+                        height: `${(signatureLayer.height / sourceSize.height) * 100}%`,
+                        transform: `rotate(${signatureLayer.rotation}deg)`,
                       }}
+                    >
+                      <img
+                        className="revealSignature"
+                        src="/api/fake-youtube-signature"
+                        alt=""
+                        style={{
+                          opacity: isRevealRunning || revealProgress > 0 ? 0.96 : 0.05,
+                          maskImage: signatureRevealMask,
+                          WebkitMaskImage: signatureRevealMask,
+                          transform: "rotate(-90deg) scale(0.88)",
+                        }}
                       />
-                  ))}
-                  <button
-                    type="button"
-                    className="rotateHandle"
-                    style={{
-                      right: `-${ROTATE_HANDLE_GAP}px`,
-                      top: "50%",
-                      transform: "translateY(-50%)",
-                    }}
-                    onPointerDown={beginRotate}
-                    onPointerMove={handlePointerMove}
-                    onPointerUp={handlePointerUp}
-                    onPointerCancel={handlePointerUp}
-                    aria-label="Rotate overlay"
-                  />
+                      {handlePositions.map((handle) => (
+                        <div
+                          key={handle.key}
+                          className={`resizeHandle ${handle.className}`}
+                          onPointerDown={(event) => beginResize(handle.edge, event)}
+                          onPointerMove={handlePointerMove}
+                          onPointerUp={handlePointerUp}
+                          onPointerCancel={handlePointerUp}
+                          style={{
+                            cursor: handle.cursor,
+                            ...handle.style,
+                          }}
+                        />
+                      ))}
+                    </div>
+                  ) : null}
+                  {!isRevealMode ? (
+                    <div
+                      className="overlayBox"
+                      onPointerDown={beginMove}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      onPointerCancel={handlePointerUp}
+                      style={{
+                        left: `${(overlay.x / sourceSize.width) * 100}%`,
+                        top: `${(overlay.y / sourceSize.height) * 100}%`,
+                        width: `${(overlay.width / sourceSize.width) * 100}%`,
+                        height: `${(overlay.height / sourceSize.height) * 100}%`,
+                        transform: `rotate(${overlay.rotation}deg)`,
+                      }}
+                    >
+                      {handlePositions.map((handle) => (
+                        <div
+                          key={handle.key}
+                          className={`resizeHandle ${handle.className}`}
+                          onPointerDown={(event) => beginResize(handle.edge, event)}
+                          onPointerMove={handlePointerMove}
+                          onPointerUp={handlePointerUp}
+                          onPointerCancel={handlePointerUp}
+                          style={{
+                            cursor: handle.cursor,
+                            ...handle.style,
+                          }}
+                        />
+                      ))}
+                      {!isRevealMode ? (
+                        <button
+                          type="button"
+                          className="rotateHandle"
+                          style={{
+                            right: `-${ROTATE_HANDLE_GAP}px`,
+                            top: "50%",
+                            transform: "translateY(-50%)",
+                          }}
+                          onPointerDown={beginRotate}
+                          onPointerMove={handlePointerMove}
+                          onPointerUp={handlePointerUp}
+                          onPointerCancel={handlePointerUp}
+                          aria-label="Rotate overlay"
+                        />
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -584,6 +803,32 @@ export default function OverlayCalibrationScreen() {
             />
             <div className="stepUnit">pixels</div>
           </div>
+
+          {isRevealMode ? (
+            <div className="revealControls">
+              <button type="button" className="controlButton" onClick={startReveal}>
+                Start BoB Overlay
+              </button>
+              <button type="button" className="controlButton" onClick={() => adjustRevealVisibility(-REVEAL_VISIBILITY_STEP)}>
+                Decrease
+              </button>
+              <button type="button" className="controlButton" onClick={() => adjustRevealVisibility(REVEAL_VISIBILITY_STEP)}>
+                Increase
+              </button>
+              <button type="button" className="controlButton" onClick={() => adjustRevealSpeed(-REVEAL_SPEED_STEP)}>
+                Reveal Slower
+              </button>
+              <button type="button" className="controlButton" onClick={() => adjustRevealSpeed(REVEAL_SPEED_STEP)}>
+                Reveal Faster
+              </button>
+              <button type="button" className="controlButton" onClick={pauseReveal}>
+                Pause BoB Overlay
+              </button>
+              <button type="button" className="controlButton" onClick={resetReveal}>
+                Reset Reveal
+              </button>
+            </div>
+          ) : null}
 
           <div className="buttonGrid">
             <button type="button" className="controlButton" onClick={() => rotate(-ROTATION_STEP)}>Rotate Left</button>
@@ -791,10 +1036,37 @@ export default function OverlayCalibrationScreen() {
           outline-offset: -1px;
           background: rgba(250, 204, 21, 0.08);
           cursor: grab;
-          transform-origin: top left;
+          transform-origin: center;
           touch-action: none;
           pointer-events: auto;
           z-index: 2;
+        }
+
+        .signatureEditBox {
+          border-color: rgba(250, 204, 21, 0.95);
+          background: rgba(250, 204, 21, 0.05);
+        }
+
+        .cardGuideBox {
+          position: absolute;
+          box-sizing: border-box;
+          border: 1px dashed rgba(148, 163, 184, 0.75);
+          border-radius: 12px;
+          outline: 1px solid rgba(15, 23, 42, 0.08);
+          outline-offset: -1px;
+          background: rgba(255, 255, 255, 0.03);
+          pointer-events: none;
+          z-index: 1;
+          transform-origin: top left;
+        }
+
+        .signatureStageLayer {
+          position: absolute;
+          box-sizing: border-box;
+          pointer-events: auto;
+          z-index: 2;
+          transform-origin: center;
+          touch-action: none;
         }
 
         .overlayBox:active {
@@ -806,6 +1078,17 @@ export default function OverlayCalibrationScreen() {
           position: absolute;
           inset: -6px;
           border-radius: 16px;
+        }
+
+        .revealSignature {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          transform-origin: center;
+          pointer-events: none;
+          filter: saturate(1.08) contrast(1.08);
         }
 
         .resizeHandle {
@@ -882,6 +1165,18 @@ export default function OverlayCalibrationScreen() {
         .buttonGrid > :first-child,
         .buttonGrid > :nth-child(2) {
           background: #10233b;
+          color: #fff;
+        }
+
+        .revealControls {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .revealControls > :first-child {
+          grid-column: 1 / -1;
+          background: #7c2d12;
           color: #fff;
         }
 
