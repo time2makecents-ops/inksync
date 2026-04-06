@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
+
 const RECOMMENDED_VIDEOS = [
   {
     title: "A Forgotten Close-Up Miracle From 2008",
@@ -184,6 +186,76 @@ function RecommendationCard({ video }) {
 }
 
 export default function FakeYouTubePage() {
+  const videoRef = useRef(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) {
+      return undefined;
+    }
+
+    const handleLoadedMetadata = () => {
+      setDuration(Number.isFinite(video.duration) ? video.duration : 0);
+      setIsReady(true);
+    };
+    const handleTimeUpdate = () => setCurrentTime(video.currentTime);
+    const handlePlay = () => setIsPlaying(true);
+    const handlePause = () => setIsPlaying(false);
+    const handleEnded = () => setIsPlaying(false);
+
+    video.addEventListener("loadedmetadata", handleLoadedMetadata);
+    video.addEventListener("timeupdate", handleTimeUpdate);
+    video.addEventListener("play", handlePlay);
+    video.addEventListener("pause", handlePause);
+    video.addEventListener("ended", handleEnded);
+
+    return () => {
+      video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      video.removeEventListener("timeupdate", handleTimeUpdate);
+      video.removeEventListener("play", handlePlay);
+      video.removeEventListener("pause", handlePause);
+      video.removeEventListener("ended", handleEnded);
+    };
+  }, []);
+
+  function formatTime(totalSeconds) {
+    const safeSeconds = Math.max(0, Math.floor(totalSeconds || 0));
+    const minutes = Math.floor(safeSeconds / 60);
+    const seconds = safeSeconds % 60;
+    return `${minutes}:${String(seconds).padStart(2, "0")}`;
+  }
+
+  async function togglePlayback() {
+    const video = videoRef.current;
+    if (!video) {
+      return;
+    }
+
+    if (video.paused) {
+      await video.play();
+      return;
+    }
+
+    video.pause();
+  }
+
+  function handleTimelineChange(event) {
+    const video = videoRef.current;
+    if (!video || !duration) {
+      return;
+    }
+
+    const nextTime = (Number(event.target.value) / 1000) * duration;
+    video.currentTime = nextTime;
+    setCurrentTime(nextTime);
+  }
+
+  const progress = duration > 0 ? currentTime / duration : 0;
+
   return (
     <div className="watchPage">
       <header className="topbar">
@@ -224,26 +296,48 @@ export default function FakeYouTubePage() {
       <main className="contentShell">
         <section className="mainColumn">
           <div className="videoFrame">
+            <video
+              ref={videoRef}
+              className="playerVideo"
+              playsInline
+              preload="auto"
+              src="/api/fake-youtube-video"
+            />
             <div className="playerBackdrop" />
-            <div className="playerCenterBadge">
-              <div className="centerPlay">
-                <PlayGlyph />
-              </div>
-              <span>Local performance video slot</span>
-            </div>
+            {!isPlaying ? (
+              <button className="playerCenterBadge" type="button" onClick={togglePlayback} aria-label="Play video">
+                <div className="centerPlay">
+                  <PlayGlyph />
+                </div>
+                <span>{isReady ? "Play performance" : "Loading performance video"}</span>
+              </button>
+            ) : null}
             <div className="playerTopFade" />
             <div className="playerBottomFade" />
             <div className="playerControls">
               <div className="controlLeft">
-                <button className="playerButton" type="button" aria-label="Play">
-                  <PlayGlyph small />
+                <button
+                  className="playerButton"
+                  type="button"
+                  aria-label={isPlaying ? "Pause" : "Play"}
+                  onClick={togglePlayback}
+                >
+                  {isPlaying ? <span className="pauseGlyph">||</span> : <PlayGlyph small />}
                 </button>
-                <div className="timeReadout">0:00 / 3:27</div>
+                <div className="timeReadout">{formatTime(currentTime)} / {formatTime(duration)}</div>
               </div>
-              <div className="timeline">
-                <div className="timelinePlayed" />
-                <div className="timelineHandle" />
-              </div>
+              <label className="timeline" aria-label="Video progress">
+                <div className="timelineTrack" />
+                <div className="timelinePlayed" style={{ width: `${progress * 100}%` }} />
+                <div className="timelineHandle" style={{ left: `calc(${progress * 100}% - 7px)` }} />
+                <input
+                  type="range"
+                  min="0"
+                  max="1000"
+                  value={Math.round(progress * 1000)}
+                  onChange={handleTimelineChange}
+                />
+              </label>
               <div className="controlRight">
                 <button className="playerButton" type="button" aria-label="Settings">
                   <IconSettings />
@@ -495,6 +589,15 @@ export default function FakeYouTubePage() {
           box-shadow: 0 10px 40px rgba(0,0,0,0.22);
         }
 
+        .playerVideo {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          background: #050505;
+        }
+
         .playerBackdrop {
           position: absolute;
           inset: 0;
@@ -512,6 +615,9 @@ export default function FakeYouTubePage() {
           color: rgba(255, 255, 255, 0.84);
           font-size: 15px;
           text-align: center;
+          background: transparent;
+          border: 0;
+          width: 100%;
         }
 
         .centerPlay {
@@ -578,24 +684,43 @@ export default function FakeYouTubePage() {
 
         .timeline {
           position: relative;
+          height: 20px;
+          display: flex;
+          align-items: center;
+        }
+
+        .timeline input {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          margin: 0;
+          opacity: 0;
+          cursor: pointer;
+        }
+
+        .timelineTrack {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 50%;
           height: 4px;
           border-radius: 999px;
+          transform: translateY(-50%);
           background: rgba(255, 255, 255, 0.24);
         }
 
         .timelinePlayed {
           position: absolute;
           left: 0;
-          top: 0;
-          bottom: 0;
-          width: 38%;
+          top: 50%;
+          height: 4px;
           border-radius: 999px;
+          transform: translateY(-50%);
           background: #ff0033;
         }
 
         .timelineHandle {
           position: absolute;
-          left: calc(38% - 7px);
           top: 50%;
           width: 14px;
           height: 14px;
@@ -603,6 +728,12 @@ export default function FakeYouTubePage() {
           background: #ff0033;
           transform: translateY(-50%);
           box-shadow: 0 0 0 4px rgba(255, 0, 51, 0.12);
+        }
+
+        .pauseGlyph {
+          font-size: 14px;
+          font-weight: 700;
+          letter-spacing: -0.1em;
         }
 
         .watchMeta {
