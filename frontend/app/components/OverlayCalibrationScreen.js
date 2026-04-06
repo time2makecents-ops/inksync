@@ -1,0 +1,966 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+
+import {
+  getStoredOverlayCalibration,
+  setStoredOverlayCalibration,
+} from "../../lib/userPreferences";
+
+const SOURCE_ASPECT_RATIO = 612 / 465;
+const DEFAULT_ROTATION = -11.5;
+const DEFAULT_FRAME_ID = "frame_03_0";
+const ROTATION_STEP = 0.25;
+const MIN_ZOOM = 0.75;
+const MAX_ZOOM = 4;
+const ZOOM_STEP = 0.1;
+const MIN_OVERLAY_SIZE = 12;
+const HANDLE_GAP = 15;
+const ROTATE_HANDLE_GAP = 30;
+const HANDLE_SIZE = 12;
+const TARGET_FRAME_OVERLAYS = {
+  frame_08_0: {
+    x: 370,
+    y: 1008,
+    width: 191.2780000000002,
+    height: 135.515,
+    rotation: -9.25,
+  },
+  frame_08_5: {
+    x: 370,
+    y: 1008,
+    width: 191.2780000000002,
+    height: 135.515,
+    rotation: -9.25,
+  },
+  frame_09_0: {
+    x: 370,
+    y: 1008,
+    width: 191.2780000000002,
+    height: 135.515,
+    rotation: -9.25,
+  },
+  frame_09_5: {
+    x: 370,
+    y: 1008,
+    width: 191.2780000000002,
+    height: 135.515,
+    rotation: -9.25,
+  },
+  frame_10_0: {
+    x: 370,
+    y: 1008,
+    width: 191.2780000000002,
+    height: 135.515,
+    rotation: -9.25,
+  },
+};
+const DEFAULT_OVERLAY = {
+  x: 395,
+  y: 1158,
+  width: 239,
+  height: 91,
+  rotation: DEFAULT_ROTATION,
+};
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeOverlay(overlay) {
+  const width = typeof overlay?.width === "number" ? overlay.width : DEFAULT_OVERLAY.width;
+  return {
+    x: typeof overlay?.x === "number" ? overlay.x : DEFAULT_OVERLAY.x,
+    y: typeof overlay?.y === "number" ? overlay.y : DEFAULT_OVERLAY.y,
+    width,
+    height:
+      typeof overlay?.height === "number"
+        ? overlay.height
+        : Math.round(width / SOURCE_ASPECT_RATIO),
+    rotation: typeof overlay?.rotation === "number" ? overlay.rotation : DEFAULT_OVERLAY.rotation,
+  };
+}
+
+export default function OverlayCalibrationScreen() {
+  const stageRef = useRef(null);
+  const dragStateRef = useRef(null);
+  const [frames, setFrames] = useState([]);
+  const [frameId, setFrameId] = useState(DEFAULT_FRAME_ID);
+  const [sourceSize, setSourceSize] = useState({ width: 1080, height: 1920 });
+  const [overlaysByFrame, setOverlaysByFrame] = useState({});
+  const [status, setStatus] = useState("Loading reference frames...");
+  const [zoom, setZoom] = useState(1);
+  const [stepSize, setStepSize] = useState(1);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadFrames() {
+      try {
+        const response = await fetch("/api/overlay-reference-frames", { cache: "no-store" });
+        const payload = await response.json();
+        if (cancelled) {
+          return;
+        }
+
+        setFrames(payload.frames ?? []);
+        setSourceSize({
+          width: payload.sourceWidth ?? 1080,
+          height: payload.sourceHeight ?? 1920,
+        });
+
+        const stored = getStoredOverlayCalibration();
+        if (stored?.frames && typeof stored.frames === "object") {
+          const normalizedFrames = Object.fromEntries(
+            Object.entries(stored.frames).map(([key, value]) => [key, normalizeOverlay(value)])
+          );
+          setOverlaysByFrame(normalizedFrames);
+        }
+
+        try {
+          const backupResponse = await fetch("/api/overlay-calibration-backup", { cache: "no-store" });
+          if (backupResponse.ok) {
+            const backupPayload = await backupResponse.json();
+            if (backupPayload?.frames && typeof backupPayload.frames === "object") {
+              const backupFrames = Object.fromEntries(
+                Object.entries(backupPayload.frames).map(([key, value]) => [key, normalizeOverlay(value)])
+              );
+              setOverlaysByFrame((current) => ({ ...backupFrames, ...current }));
+            }
+          }
+        } catch {
+          // Ignore backup load failures; localStorage still works.
+        }
+
+        setOverlaysByFrame((current) => {
+          const next = { ...current };
+          for (const [targetFrameId, targetOverlay] of Object.entries(TARGET_FRAME_OVERLAYS)) {
+            next[targetFrameId] = normalizeOverlay(targetOverlay);
+          }
+          return next;
+        });
+        setStepSize(0.001);
+
+        if (payload.frames?.length) {
+          setFrameId((current) =>
+            payload.frames.some((frame) => frame.id === current) ? current : payload.frames[0].id
+          );
+          setStatus("Reference frames ready.");
+        } else {
+          setStatus("No sampled frames found in scratch_frames.");
+        }
+      } catch (error) {
+        setStatus(`Unable to load reference frames: ${error.message}`);
+      }
+    }
+
+    loadFrames();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!Object.keys(overlaysByFrame).length) {
+      return;
+    }
+
+    const snapshot = {
+      sourceWidth: sourceSize.width,
+      sourceHeight: sourceSize.height,
+      frames: overlaysByFrame,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setStoredOverlayCalibration(snapshot);
+    fetch("/api/overlay-calibration-backup", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(snapshot),
+    }).catch(() => {});
+  }, [overlaysByFrame, sourceSize.height, sourceSize.width]);
+
+  const currentFrame = useMemo(
+    () => frames.find((frame) => frame.id === frameId) ?? null,
+    [frameId, frames]
+  );
+
+  const overlay = normalizeOverlay(overlaysByFrame[frameId] ?? DEFAULT_OVERLAY);
+
+  function updateOverlay(updater) {
+    setOverlaysByFrame((current) => {
+      const existing = current[frameId] ?? DEFAULT_OVERLAY;
+      const next = typeof updater === "function" ? updater(normalizeOverlay(existing)) : normalizeOverlay(updater);
+      return {
+        ...current,
+        [frameId]: normalizeOverlay(next),
+      };
+    });
+  }
+
+  function clampOverlay(nextOverlay) {
+    const normalized = normalizeOverlay(nextOverlay);
+    const maxWidth = sourceSize.width;
+    const maxHeight = sourceSize.height;
+    const width = clamp(normalized.width, MIN_OVERLAY_SIZE, maxWidth);
+    const height = clamp(normalized.height, MIN_OVERLAY_SIZE, maxHeight);
+    return {
+      ...normalized,
+      width,
+      height,
+      x: clamp(normalized.x, 0, maxWidth - width),
+      y: clamp(normalized.y, 0, maxHeight - height),
+    };
+  }
+
+  function nudge(dx, dy) {
+    updateOverlay((current) => ({
+      ...current,
+      x: clamp(current.x + dx * stepSize, 0, sourceSize.width),
+      y: clamp(current.y + dy * stepSize, 0, sourceSize.height),
+    }));
+  }
+
+  function resize(delta) {
+    updateOverlay((current) => ({
+      ...current,
+      width: clamp(current.width + delta * stepSize, 40, sourceSize.width),
+    }));
+  }
+
+  function resizeHeight(delta) {
+    updateOverlay((current) => ({
+      ...current,
+      height: clamp(current.height + delta * stepSize, 40, sourceSize.height),
+    }));
+  }
+
+  function rotate(delta) {
+    updateOverlay((current) => ({
+      ...current,
+      rotation: Math.round((current.rotation + delta) * 100) / 100,
+    }));
+  }
+
+  function resetCurrentFrame() {
+    updateOverlay({ ...DEFAULT_OVERLAY });
+  }
+
+  function adjustZoom(delta) {
+    setZoom((current) => {
+      const next = Math.round((current + delta) * 100) / 100;
+      return clamp(next, MIN_ZOOM, MAX_ZOOM);
+    });
+  }
+
+  function handleWheel(event) {
+    event.preventDefault();
+    adjustZoom(event.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
+  }
+
+  function beginMove(event) {
+    if (!stageRef.current) {
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
+    const rect = stageRef.current.getBoundingClientRect();
+    dragStateRef.current = {
+      mode: "move",
+      rect,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startOverlay: { ...overlay },
+    };
+
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function beginResize(edge, event) {
+    if (!stageRef.current) {
+      return;
+    }
+
+    const rect = stageRef.current.getBoundingClientRect();
+    dragStateRef.current = {
+      mode: "resize",
+      edge,
+      rect,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startOverlay: { ...overlay },
+    };
+
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function beginRotate(event) {
+    if (!stageRef.current) {
+      return;
+    }
+
+    const rect = stageRef.current.getBoundingClientRect();
+    dragStateRef.current = {
+      mode: "rotate",
+      rect,
+      startClientY: event.clientY,
+      startRotation: overlay.rotation,
+      startOverlay: { ...overlay },
+    };
+
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function copyToAllFrames() {
+    setOverlaysByFrame((current) => {
+      const next = { ...current };
+      const sourceOverlay = normalizeOverlay(current[frameId] ?? DEFAULT_OVERLAY);
+      for (const frame of frames) {
+        next[frame.id] = { ...sourceOverlay };
+      }
+      return next;
+    });
+  }
+
+  function handlePointerDown(event) {
+    beginMove(event);
+  }
+
+  function handlePointerMove(event) {
+    if (!dragStateRef.current) {
+      return;
+    }
+
+    const { mode, edge, rect, startClientX, startClientY, startOverlay, startRotation } = dragStateRef.current;
+    const scaleX = sourceSize.width / rect.width;
+    const scaleY = sourceSize.height / rect.height;
+    const dx = Math.round((event.clientX - startClientX) * scaleX);
+    const dy = Math.round((event.clientY - startClientY) * scaleY);
+
+    if (mode === "rotate") {
+      const deltaDegrees = (dragStateRef.current.startClientY - event.clientY) * 0.25;
+      updateOverlay((current) => ({
+        ...current,
+        rotation: Math.round((startRotation + deltaDegrees) * 100) / 100,
+      }));
+      return;
+    }
+
+    if (mode === "resize") {
+      updateOverlay(() => {
+        let next = { ...startOverlay };
+
+        if (edge === "left") {
+          const nextX = clamp(startOverlay.x + dx, 0, startOverlay.x + startOverlay.width - MIN_OVERLAY_SIZE);
+          const right = startOverlay.x + startOverlay.width;
+          next = {
+            ...next,
+            x: nextX,
+            width: clamp(right - nextX, MIN_OVERLAY_SIZE, sourceSize.width),
+          };
+        }
+
+        if (edge === "right") {
+          const nextWidth = clamp(startOverlay.width + dx, MIN_OVERLAY_SIZE, sourceSize.width - startOverlay.x);
+          next = { ...next, width: nextWidth };
+        }
+
+        if (edge === "top") {
+          const nextY = clamp(startOverlay.y + dy, 0, startOverlay.y + startOverlay.height - MIN_OVERLAY_SIZE);
+          const bottom = startOverlay.y + startOverlay.height;
+          next = {
+            ...next,
+            y: nextY,
+            height: clamp(bottom - nextY, MIN_OVERLAY_SIZE, sourceSize.height),
+          };
+        }
+
+        if (edge === "bottom") {
+          const nextHeight = clamp(startOverlay.height + dy, MIN_OVERLAY_SIZE, sourceSize.height - startOverlay.y);
+          next = { ...next, height: nextHeight };
+        }
+
+        return clampOverlay(next);
+      });
+      return;
+    }
+
+    updateOverlay(() => ({
+      ...startOverlay,
+      x: clamp(startOverlay.x + dx, 0, sourceSize.width),
+      y: clamp(startOverlay.y + dy, 0, sourceSize.height),
+    }));
+  }
+
+  function handlePointerUp(event) {
+    if (!dragStateRef.current) {
+      return;
+    }
+
+    dragStateRef.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+  }
+
+  const exportPayload = JSON.stringify(
+    {
+      sourceWidth: sourceSize.width,
+      sourceHeight: sourceSize.height,
+      activeFrame: frameId,
+      frameOverlay: overlay,
+      frames: overlaysByFrame,
+    },
+    null,
+    2
+  );
+
+  const handlePositions = [
+    {
+      key: "top",
+      className: "handleTop",
+      style: {
+        left: "50%",
+        top: `-${HANDLE_GAP}px`,
+        transform: "translate(-50%, -50%)",
+      },
+      cursor: "ns-resize",
+      edge: "top",
+    },
+    {
+      key: "right",
+      className: "handleRight",
+      style: {
+        right: `-${HANDLE_GAP}px`,
+        top: "50%",
+        transform: "translate(50%, -50%)",
+      },
+      cursor: "ew-resize",
+      edge: "right",
+    },
+    {
+      key: "bottom",
+      className: "handleBottom",
+      style: {
+        left: "50%",
+        bottom: `-${HANDLE_GAP}px`,
+        transform: "translate(-50%, 50%)",
+      },
+      cursor: "ns-resize",
+      edge: "bottom",
+    },
+    {
+      key: "left",
+      className: "handleLeft",
+      style: {
+        left: `-${HANDLE_GAP}px`,
+        top: "50%",
+        transform: "translate(-50%, -50%)",
+      },
+      cursor: "ew-resize",
+      edge: "left",
+    },
+  ];
+
+  return (
+    <div className="overlayCalibrationPage">
+      <main className="layout">
+        <section className="stageCard">
+          <div className="sectionHead">
+            <div>
+              <div className="eyebrow">Overlay Calibration</div>
+              <h1>Line up the dotted card box against the magician card</h1>
+            </div>
+            <div className="status">{status}</div>
+          </div>
+
+          <div className="frameTabs" role="tablist" aria-label="Reference frames">
+            {frames.map((frame) => (
+              <button
+                key={frame.id}
+                type="button"
+                className={`frameTab ${frame.id === frameId ? "frameTabActive" : ""}`}
+                onClick={() => setFrameId(frame.id)}
+              >
+                {frame.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="zoomRow">
+            <button type="button" className="secondaryButton" onClick={() => adjustZoom(-ZOOM_STEP)}>Zoom Out</button>
+            <div className="zoomReadout">Zoom {Math.round(zoom * 100)}%</div>
+            <button type="button" className="secondaryButton" onClick={() => adjustZoom(ZOOM_STEP)}>Zoom In</button>
+            <button type="button" className="secondaryButton" onClick={() => setZoom(1)}>Reset Zoom</button>
+          </div>
+
+          <div className="stageWrap">
+            {currentFrame ? (
+              <div className="stageViewport" onWheel={handleWheel}>
+                <div
+                  ref={stageRef}
+                  className="stage"
+                  style={{
+                    width: `${zoom * 100}%`,
+                  }}
+                >
+                  <img className="referenceFrame" src={currentFrame.src} alt={`Reference ${currentFrame.label}`} />
+                  <div
+                    className="overlayBox"
+                    onPointerDown={beginMove}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
+                    style={{
+                      left: `${(overlay.x / sourceSize.width) * 100}%`,
+                      top: `${(overlay.y / sourceSize.height) * 100}%`,
+                      width: `${(overlay.width / sourceSize.width) * 100}%`,
+                      height: `${(overlay.height / sourceSize.height) * 100}%`,
+                      transform: `rotate(${overlay.rotation}deg)`,
+                    }}
+                  />
+                  {handlePositions.map((handle) => (
+                    <div
+                      key={handle.key}
+                      className={`resizeHandle ${handle.className}`}
+                      onPointerDown={(event) => beginResize(handle.edge, event)}
+                      onPointerMove={handlePointerMove}
+                      onPointerUp={handlePointerUp}
+                      onPointerCancel={handlePointerUp}
+                      style={{
+                        cursor: handle.cursor,
+                        ...handle.style,
+                      }}
+                      />
+                  ))}
+                  <button
+                    type="button"
+                    className="rotateHandle"
+                    style={{
+                      right: `-${ROTATE_HANDLE_GAP}px`,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                    }}
+                    onPointerDown={beginRotate}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerUp}
+                    aria-label="Rotate overlay"
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="emptyStage">No frame selected.</div>
+            )}
+          </div>
+        </section>
+
+        <aside className="controlsCard">
+          <div className="sectionHead">
+            <div>
+              <div className="eyebrow">Controls</div>
+              <h2>Precision adjustments</h2>
+            </div>
+          </div>
+
+          <div className="stepRow">
+            <label className="stepLabel" htmlFor="step-size">Adjustment size</label>
+            <input
+              id="step-size"
+              className="stepInput"
+              type="number"
+              min="0.001"
+              max="100"
+              step="0.001"
+              value={stepSize}
+              onChange={(event) => {
+                const next = Number.parseFloat(event.target.value);
+                setStepSize(Number.isFinite(next) ? clamp(next, 0.001, 100) : 0.001);
+              }}
+            />
+            <div className="stepUnit">pixels</div>
+          </div>
+
+          <div className="buttonGrid">
+            <button type="button" className="controlButton" onClick={() => rotate(-ROTATION_STEP)}>Rotate Left</button>
+            <button type="button" className="controlButton" onClick={() => rotate(ROTATION_STEP)}>Rotate Right</button>
+            <button type="button" className="controlButton" onClick={() => nudge(0, -1)}>Up</button>
+            <button type="button" className="controlButton" onClick={() => nudge(-1, 0)}>Left</button>
+            <button type="button" className="controlButton" onClick={() => nudge(1, 0)}>Right</button>
+            <button type="button" className="controlButton" onClick={() => nudge(0, 1)}>Down</button>
+            <button type="button" className="controlButton" onClick={() => resize(1)}>Increase Width</button>
+            <button type="button" className="controlButton" onClick={() => resize(-1)}>Decrease Width</button>
+            <button type="button" className="controlButton" onClick={() => resizeHeight(1)}>Increase Height</button>
+            <button type="button" className="controlButton" onClick={() => resizeHeight(-1)}>Decrease Height</button>
+          </div>
+
+          <div className="actionRow">
+            <button type="button" className="secondaryButton" onClick={resetCurrentFrame}>Reset Frame</button>
+            <button type="button" className="secondaryButton" onClick={copyToAllFrames}>Copy To All</button>
+          </div>
+
+          <div className="readout">
+            <div><strong>Frame:</strong> {currentFrame?.label ?? "None"}</div>
+            <div><strong>X:</strong> {overlay.x}px</div>
+            <div><strong>Y:</strong> {overlay.y}px</div>
+            <div><strong>Width:</strong> {overlay.width}px</div>
+            <div><strong>Height:</strong> {overlay.height}px</div>
+            <div><strong>Rotation:</strong> {overlay.rotation}deg</div>
+            <div><strong>Step:</strong> {stepSize}px</div>
+          </div>
+
+          <div className="note">
+            Drag the dotted box directly on the frame or use the buttons. Every button press is one source pixel.
+          </div>
+
+          <div className="sectionHead compactHead">
+            <div>
+              <div className="eyebrow">Saved Data</div>
+              <h2>Current JSON</h2>
+            </div>
+          </div>
+          <textarea className="jsonBox" value={exportPayload} readOnly />
+        </aside>
+      </main>
+
+      <style jsx>{`
+        .overlayCalibrationPage {
+          min-height: 100vh;
+          overflow-y: auto;
+          background:
+            radial-gradient(circle at top, rgba(190, 210, 255, 0.45), rgba(255, 255, 255, 0) 38%),
+            linear-gradient(180deg, #eef2f7 0%, #dde5ef 100%);
+          color: #101828;
+          padding: 24px;
+        }
+
+        .layout {
+          max-width: 1500px;
+          margin: 0 auto;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 340px;
+          gap: 20px;
+          align-items: start;
+        }
+
+        .stageCard,
+        .controlsCard {
+          border-radius: 24px;
+          background: rgba(255, 255, 255, 0.88);
+          border: 1px solid rgba(148, 163, 184, 0.28);
+          box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12);
+          backdrop-filter: blur(12px);
+        }
+
+        .stageCard {
+          padding: 20px;
+        }
+
+        .controlsCard {
+          padding: 20px;
+          display: grid;
+          gap: 16px;
+          align-content: start;
+          max-height: calc(100vh - 48px);
+          overflow-y: auto;
+        }
+
+        .sectionHead {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: start;
+          margin-bottom: 14px;
+        }
+
+        .compactHead {
+          margin-bottom: 0;
+        }
+
+        .eyebrow {
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          color: #5b6b83;
+          margin-bottom: 6px;
+        }
+
+        h1,
+        h2 {
+          margin: 0;
+          font-size: 22px;
+          line-height: 1.15;
+        }
+
+        h2 {
+          font-size: 18px;
+        }
+
+        .status {
+          font-size: 13px;
+          color: #475467;
+          font-weight: 600;
+        }
+
+        .frameTabs {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          margin-bottom: 16px;
+        }
+
+        .frameTab,
+        .controlButton,
+        .secondaryButton {
+          border: 0;
+          border-radius: 999px;
+          background: #e7edf5;
+          color: #10233b;
+          font-weight: 700;
+        }
+
+        .frameTab {
+          min-height: 34px;
+          padding: 0 14px;
+          font-size: 13px;
+        }
+
+        .frameTabActive {
+          background: #10233b;
+          color: #fff;
+        }
+
+        .stageWrap {
+          display: flex;
+          justify-content: center;
+        }
+
+        .zoomRow {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          align-items: center;
+          margin-bottom: 16px;
+        }
+
+        .zoomReadout {
+          min-width: 88px;
+          text-align: center;
+          font-size: 14px;
+          font-weight: 700;
+          color: #334155;
+        }
+
+        .stageViewport {
+          width: min(100%, 430px);
+          aspect-ratio: 1080 / 1920;
+          overflow: auto;
+          border-radius: 18px;
+          background: #0f172a;
+          box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+        }
+
+        .stage {
+          position: relative;
+          width: 100%;
+          aspect-ratio: 1080 / 1920;
+          overflow: hidden;
+          touch-action: none;
+        }
+
+        .referenceFrame {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+          user-select: none;
+          pointer-events: none;
+        }
+
+        .overlayBox {
+          position: absolute;
+          box-sizing: border-box;
+          border: 1px dashed #facc15;
+          border-radius: 12px;
+          outline: 1px solid rgba(0, 0, 0, 0.18);
+          outline-offset: -1px;
+          background: rgba(250, 204, 21, 0.08);
+          cursor: grab;
+          transform-origin: top left;
+          touch-action: none;
+          pointer-events: auto;
+          z-index: 2;
+        }
+
+        .overlayBox:active {
+          cursor: grabbing;
+        }
+
+        .overlayBox::before {
+          content: "";
+          position: absolute;
+          inset: -6px;
+          border-radius: 16px;
+        }
+
+        .resizeHandle {
+          position: absolute;
+          width: ${HANDLE_SIZE}px;
+          height: ${HANDLE_SIZE}px;
+          background: rgba(250, 204, 21, 0.98);
+          border: 1px solid rgba(0, 0, 0, 0.24);
+          border-radius: 999px;
+          pointer-events: auto;
+          z-index: 3;
+          touch-action: none;
+        }
+
+        .resizeHandle::after {
+          content: "";
+          position: absolute;
+          inset: -8px;
+        }
+
+        .handleTop {
+          left: 50%;
+          top: -${HANDLE_GAP}px;
+          transform: translate(-50%, -50%);
+        }
+
+        .handleRight {
+          right: -${HANDLE_GAP}px;
+          top: 50%;
+          transform: translate(50%, -50%);
+        }
+
+        .handleBottom {
+          left: 50%;
+          bottom: -${HANDLE_GAP}px;
+          transform: translate(-50%, 50%);
+        }
+
+        .handleLeft {
+          left: -${HANDLE_GAP}px;
+          top: 50%;
+          transform: translate(-50%, -50%);
+        }
+
+        .rotateHandle {
+          position: absolute;
+          width: 16px;
+          height: 16px;
+          border-radius: 999px;
+          background: #facc15;
+          border: 1px solid rgba(0, 0, 0, 0.24);
+          pointer-events: auto;
+          z-index: 3;
+          cursor: grab;
+          touch-action: none;
+        }
+
+        .emptyStage,
+        .note {
+          border-radius: 14px;
+          background: #eef2f7;
+          color: #475467;
+          padding: 12px 14px;
+          font-size: 13px;
+          line-height: 1.45;
+        }
+
+        .buttonGrid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .buttonGrid > :first-child,
+        .buttonGrid > :nth-child(2) {
+          background: #10233b;
+          color: #fff;
+        }
+
+        .stepRow {
+          display: grid;
+          grid-template-columns: auto 92px auto;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .stepLabel {
+          font-size: 14px;
+          font-weight: 700;
+          color: #334155;
+        }
+
+        .stepInput {
+          width: 100%;
+          min-height: 42px;
+          border: 1px solid #cdd5df;
+          border-radius: 12px;
+          padding: 0 12px;
+          font-size: 14px;
+          font-weight: 700;
+          color: #10233b;
+          background: #fff;
+        }
+
+        .stepInput::-webkit-outer-spin-button,
+        .stepInput::-webkit-inner-spin-button {
+          opacity: 1;
+        }
+
+        .stepUnit {
+          font-size: 13px;
+          color: #475467;
+          font-weight: 600;
+        }
+
+        .controlButton,
+        .secondaryButton {
+          min-height: 42px;
+          padding: 0 14px;
+          font-size: 14px;
+        }
+
+        .actionRow {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .readout {
+          display: grid;
+          gap: 6px;
+          padding: 14px;
+          border-radius: 16px;
+          background: #f7f9fc;
+          font-size: 14px;
+        }
+
+        .jsonBox {
+          width: 100%;
+          min-height: 240px;
+          resize: vertical;
+          border: 1px solid #cdd5df;
+          border-radius: 16px;
+          padding: 12px;
+          font: 12px/1.4 Consolas, monospace;
+          background: #fff;
+          color: #101828;
+        }
+
+        @media (max-width: 1100px) {
+          .layout {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+    </div>
+  );
+}

@@ -2,6 +2,7 @@ export const HANDEDNESS_STORAGE_KEY = "flipperiq-handedness";
 export const HANDEDNESS_OPTIONS = ["right", "left"];
 export const PROFILE_PHOTO_STORAGE_KEY = "flipperiq-profile-photo";
 export const CALIBRATION_SNAPSHOT_STORAGE_KEY = "inksync-calibration-snapshot";
+export const OVERLAY_CALIBRATION_STORAGE_KEY = "inksync-overlay-calibration";
 
 export function getStoredHandedness() {
   if (typeof window === "undefined") {
@@ -85,4 +86,35 @@ export function setStoredCalibrationSnapshot(value) {
   }
 
   window.localStorage.setItem(CALIBRATION_SNAPSHOT_STORAGE_KEY, JSON.stringify(value));
+}
+
+export function getStoredOverlayCalibration() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = window.localStorage.getItem(OVERLAY_CALIBRATION_STORAGE_KEY);
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredOverlayCalibration(value) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  if (!value) {
+    window.localStorage.removeItem(OVERLAY_CALIBRATION_STORAGE_KEY);
+    return;
+  }
+
+  window.localStorage.setItem(OVERLAY_CALIBRATION_STORAGE_KEY, JSON.stringify(value));
 }

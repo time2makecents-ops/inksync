@@ -2,6 +2,32 @@
 
 import { useEffect, useRef, useState } from "react";
 
+const SIGNATURE_CONFIG = {
+  overlayStartTime: 3.0,
+  startTime: 3.0,
+  duration: 1.6,
+  trackingStartTime: 3.0,
+  cardWidth: 18.4,
+  assetRotation: 90,
+  opacity: 0.96,
+  initialPose: {
+    left: 45.75,
+    top: 67.15,
+    rotation: -11.5,
+  },
+  trackedPose: {
+    left: 45.75,
+    top: 67.15,
+    rotation: -11.5,
+  },
+  signatureImage: {
+    offsetX: 0.8,
+    offsetY: 6.8,
+    scale: 0.88,
+    rotation: -90,
+  },
+};
+
 const RECOMMENDED_VIDEOS = [
   {
     title: "A Forgotten Close-Up Miracle From 2008",
@@ -191,6 +217,8 @@ export default function FakeYouTubePage() {
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isReady, setIsReady] = useState(false);
+  const [showOverlayGuide, setShowOverlayGuide] = useState(false);
+  const [forceReveal, setForceReveal] = useState(false);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -255,6 +283,36 @@ export default function FakeYouTubePage() {
   }
 
   const progress = duration > 0 ? currentTime / duration : 0;
+  const trackingProgress = Math.max(
+    0,
+    Math.min(1, (currentTime - SIGNATURE_CONFIG.trackingStartTime) / 1.25)
+  );
+  const revealProgress = forceReveal
+    ? 1
+    : Math.max(
+        0,
+        Math.min(1, (currentTime - SIGNATURE_CONFIG.startTime) / SIGNATURE_CONFIG.duration)
+      );
+  const signatureVisible = revealProgress > 0;
+  const signatureMask = `linear-gradient(90deg, rgba(0, 0, 0, 1) ${Math.max(
+    0,
+    revealProgress * 100 - 12
+  )}%, rgba(0, 0, 0, 0.88) ${Math.max(0, revealProgress * 100 - 3)}%, rgba(0, 0, 0, 0) ${Math.min(
+    100,
+    revealProgress * 100 + 8
+  )}%)`;
+  const pose = {
+    left:
+      SIGNATURE_CONFIG.initialPose.left +
+      (SIGNATURE_CONFIG.trackedPose.left - SIGNATURE_CONFIG.initialPose.left) * trackingProgress,
+    top:
+      SIGNATURE_CONFIG.initialPose.top +
+      (SIGNATURE_CONFIG.trackedPose.top - SIGNATURE_CONFIG.initialPose.top) * trackingProgress,
+    rotation:
+      SIGNATURE_CONFIG.initialPose.rotation +
+      (SIGNATURE_CONFIG.trackedPose.rotation - SIGNATURE_CONFIG.initialPose.rotation) * trackingProgress,
+  };
+  const overlayEnabled = currentTime >= SIGNATURE_CONFIG.overlayStartTime || forceReveal;
 
   return (
     <div className="watchPage">
@@ -304,6 +362,32 @@ export default function FakeYouTubePage() {
               src="/api/fake-youtube-video"
             />
             <div className="playerBackdrop" />
+            <div className="signatureStage" aria-hidden="true">
+              {overlayEnabled ? (
+                <div
+                  className="signatureCardFrame"
+                  style={{
+                    left: `${pose.left}%`,
+                    top: `${pose.top}%`,
+                    width: `${SIGNATURE_CONFIG.cardWidth}%`,
+                    transform: `translate(-50%, -50%) rotate(${pose.rotation}deg)`,
+                  }}
+                >
+                  {showOverlayGuide ? <div className="signatureGuide" /> : null}
+                  <img
+                    className={`signatureOverlay ${signatureVisible ? "signatureOverlayVisible" : ""}`}
+                    src="/api/fake-youtube-signature"
+                    alt=""
+                    style={{
+                      opacity: SIGNATURE_CONFIG.opacity,
+                      transform: `translate(${SIGNATURE_CONFIG.signatureImage.offsetX}%, ${SIGNATURE_CONFIG.signatureImage.offsetY}%) scale(${SIGNATURE_CONFIG.signatureImage.scale}) rotate(${SIGNATURE_CONFIG.assetRotation + SIGNATURE_CONFIG.signatureImage.rotation}deg)`,
+                      WebkitMaskImage: signatureMask,
+                      maskImage: signatureMask,
+                    }}
+                  />
+                </div>
+              ) : null}
+            </div>
             {!isPlaying ? (
               <button className="playerCenterBadge" type="button" onClick={togglePlayback} aria-label="Play video">
                 <div className="centerPlay">
@@ -355,6 +439,25 @@ export default function FakeYouTubePage() {
               <span className="watchChip watchChipActive">All</span>
               <span className="watchChip">From this channel</span>
               <span className="watchChip">Related</span>
+            </div>
+
+            <div className="overlayDebugRow">
+              <button className="debugPill" type="button" onClick={() => setShowOverlayGuide((value) => !value)}>
+                {showOverlayGuide ? "Hide card guide" : "Show card guide"}
+              </button>
+              <button className="debugPill" type="button" onClick={() => setForceReveal((value) => !value)}>
+                {forceReveal ? "Use timed reveal" : "Show full signature"}
+              </button>
+              <div className="debugText">
+                Overlay begins at {SIGNATURE_CONFIG.overlayStartTime.toFixed(1)}s |
+              </div>
+              <div className="debugText">
+                Reveal starts at {SIGNATURE_CONFIG.startTime.toFixed(1)}s for {SIGNATURE_CONFIG.duration.toFixed(1)}s
+              </div>
+              <div className="debugText">
+                Signature shift {SIGNATURE_CONFIG.signatureImage.offsetX}% / {SIGNATURE_CONFIG.signatureImage.offsetY}% |
+                scale {SIGNATURE_CONFIG.signatureImage.scale.toFixed(2)}
+              </div>
             </div>
 
             <h1 className="title">
@@ -606,6 +709,46 @@ export default function FakeYouTubePage() {
             linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01) 40%, rgba(0,0,0,0.22));
         }
 
+        .signatureStage {
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+        }
+
+        .signatureCardFrame,
+        .signatureGuide,
+        .signatureOverlay {
+          position: absolute;
+          transform-origin: center;
+        }
+
+        .signatureCardFrame {
+          aspect-ratio: 612 / 465;
+        }
+
+        .signatureGuide {
+          inset: 0;
+          aspect-ratio: 612 / 465;
+          border: 2px dashed rgba(255, 215, 0, 0.95);
+          border-radius: 14px;
+          box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35) inset;
+          background: linear-gradient(180deg, rgba(255, 215, 0, 0.14), rgba(255, 215, 0, 0.02));
+        }
+
+        .signatureOverlay {
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          object-fit: contain;
+          filter: saturate(1.08) contrast(1.08);
+          opacity: 0;
+          transition: opacity 160ms ease;
+        }
+
+        .signatureOverlayVisible {
+          opacity: ${SIGNATURE_CONFIG.opacity};
+        }
+
         .playerCenterBadge {
           position: absolute;
           inset: 0;
@@ -738,6 +881,31 @@ export default function FakeYouTubePage() {
 
         .watchMeta {
           padding-top: 18px;
+        }
+
+        .overlayDebugRow {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 14px;
+          align-items: center;
+        }
+
+        .debugPill {
+          height: 34px;
+          padding: 0 14px;
+          border: 0;
+          border-radius: 999px;
+          background: #f2f2f2;
+          color: #0f0f0f;
+          font-size: 13px;
+          font-weight: 600;
+        }
+
+        .debugText {
+          color: #606060;
+          font-size: 13px;
+          font-weight: 500;
         }
 
         .chips {
