@@ -1,6 +1,6 @@
 # Task 001 — Signature Calibration
 
-Status: Pending
+Status: In Progress
 
 Assigned By: Navigator  
 Assigned To:  
