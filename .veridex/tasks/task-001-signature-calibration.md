@@ -2,31 +2,28 @@
 
 Status: Pending
 
-Assigned By: Navigator
-Assigned To: UI Agent, Logic Agent, Test Agent
+Assigned By: Navigator  
+Assigned To:  
 
 ## Goal
-Fix and improve the signature reveal calibration workflow.
+Describe the objective
 
 ## Requirements
-- Height control changes vertical only
-- Width control changes horizontal only
-- Add visible preview area for calibration
-- Add reset button
+- Requirement 1
+- Requirement 2
 
 ## Constraints
-- UI Agent: layout, labels, controls only
-- Logic Agent: sizing math and handlers only
-- Test Agent: verify controls do not cross-affect each other
+- UI Agent:
+- Logic Agent:
+- Vision Agent:
 
 ## Validation
 Test Agent must confirm:
-- Increase Height affects height only
-- Increase Width affects width only
-- Reset returns calibration to baseline
-- Preview stays aligned
+- condition
+- condition
 
 ## Completion
+
 Status:
 - Pending
 - In Progress
