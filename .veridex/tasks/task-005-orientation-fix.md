@@ -1,5 +1,9 @@
 # Task 005 — Orientation Fix
 
+Owner: Vision Agent
+Support: Logic Agent
+Priority: Critical
+
 Status: Pending
 
 Assigned By: Navigator
