@@ -1,5 +1,9 @@
 # Task 003 — Keyframe System
 
+Owner: Logic Agent
+Support: UI Agent
+Priority: High
+
 Status: Pending
 
 Assigned By: Navigator
