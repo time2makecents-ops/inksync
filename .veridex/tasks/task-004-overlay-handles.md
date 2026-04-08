@@ -1,5 +1,9 @@
 # Task 004 — Overlay Handles
 
+Owner: UI Agent
+Support: None
+
+Priority: Medium
 Status: Pending
 
 Assigned By: Navigator
