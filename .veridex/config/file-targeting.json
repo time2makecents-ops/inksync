@@ -69,18 +69,21 @@
     {
       "task_id": "task-007",
       "targets": [
+        "frontend/app/components/UnifiedCalibrationScreen.js",
+        "frontend/app/components/CalibrationCalculatorPanel.js",
         "frontend/app/components/CalibrationScreen.js",
         "frontend/app/components/OverlayCalibrationScreen.js",
-        "frontend/app/components/SignatureRevealCalibrationScreen.js",
-        "frontend/app/components/ClassroomScreen.js"
+        "frontend/app/components/SignatureRevealCalibrationScreen.js"
       ]
     },
     {
       "task_id": "task-008",
       "targets": [
-        "frontend/app/components/CalibrationScreen.js",
+        "frontend/app/components/CalibrationCalculatorPanel.js",
+        "frontend/app/components/UnifiedCalibrationScreen.js",
         "frontend/app/components/OverlayCalibrationScreen.js",
-        "frontend/lib/userPreferences.js"
+        "frontend/lib/userPreferences.js",
+        "frontend/app/components/CalibrationScreen.js"
       ]
     },
     {
