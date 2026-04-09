@@ -6,8 +6,6 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { navigateBackWithinApp } from "../../lib/navigation";
 
-import { apiCoachChat } from "../../lib/api";
-import { getOtherCoachThreadContext, saveCoachThread } from "../../lib/coachThreads";
 import ClassroomCameraCard from "./ClassroomCameraCard";
 
 const NAV_ITEMS = [
@@ -20,12 +18,6 @@ const NAV_ITEMS = [
 const CATEGORY_OPTIONS = ["Shot Miss", "Control", "Tilt", "Strategy"];
 const SHOT_OPTIONS = ["Left Ramp", "Right Ramp", "Orbit", "Trap", "Skill Shot"];
 const SEVERITY_OPTIONS = ["Low", "Medium", "High"];
-const QUICK_REPLIES = [
-  "What should I focus on this ball?",
-  "What pattern are you seeing?",
-  "Give me one calmer adjustment.",
-  "What is the safest next plan?",
-];
 const SESSION_RESET_VERSION = "v5";
 const INITIAL_EVENTS = [
   {
@@ -45,22 +37,15 @@ function formatElapsed(seconds) {
   return `${minutes}:${remainder}`;
 }
 
-function getInitialMessages() {
-  return [];
-}
-
 export default function LiveSessionScreen() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const gameResultsRef = useRef(null);
-  const chatThreadRef = useRef(null);
-  const nextMessageIdRef = useRef(2);
 
   const gameName = searchParams.get("gameName") ?? "Unknown Game";
   const location = searchParams.get("location") ?? "Location not set";
   const playType = searchParams.get("playType") ?? "Solo";
   const storageKey = `flipperiq-live-session-v3:${gameName}|${location}|${playType}`;
-  const coachThreadKey = `now-playing:${gameName}|${location}|${playType}`;
 
   const [isSessionRestored, setIsSessionRestored] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -77,12 +62,6 @@ export default function LiveSessionScreen() {
   const [severity, setSeverity] = useState(SEVERITY_OPTIONS[1]);
   const [notes, setNotes] = useState("");
   const [events, setEvents] = useState(INITIAL_EVENTS);
-  const [isCoachOpen, setIsCoachOpen] = useState(false);
-  const [coachDraft, setCoachDraft] = useState("");
-  const [coachMessages, setCoachMessages] = useState(() => getInitialMessages());
-  const [locationEnabled, setLocationEnabled] = useState(false);
-  const [chatError, setChatError] = useState("");
-  const [isSending, setIsSending] = useState(false);
 
   useEffect(() => {
     const resetMarkerKey = "flipperiq-live-session-reset-version";
@@ -95,11 +74,8 @@ export default function LiveSessionScreen() {
       window.sessionStorage.setItem(resetMarkerKey, SESSION_RESET_VERSION);
     }
 
-    setLocationEnabled(window.localStorage.getItem("flipperiq-location-enabled") === "true");
-
     const savedSession = window.sessionStorage.getItem(storageKey);
     if (!savedSession) {
-      setCoachMessages(getInitialMessages());
       setIsSessionRestored(true);
       return;
     }
@@ -118,31 +94,12 @@ export default function LiveSessionScreen() {
       setSeverity(parsed.severity ?? SEVERITY_OPTIONS[1]);
       setNotes(parsed.notes ?? "");
       setEvents(Array.isArray(parsed.events) && parsed.events.length ? parsed.events : INITIAL_EVENTS);
-      setIsCoachOpen(parsed.isCoachOpen ?? false);
-      setCoachDraft(parsed.coachDraft ?? "");
-      setCoachMessages(Array.isArray(parsed.coachMessages) ? parsed.coachMessages : getInitialMessages());
     } catch {
       window.sessionStorage.removeItem(storageKey);
-      setCoachMessages(getInitialMessages());
     }
 
     setIsSessionRestored(true);
   }, [gameName, storageKey]);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const previousTouchAction = document.body.style.touchAction;
-
-    if (isCoachOpen) {
-      document.body.style.overflow = "hidden";
-      document.body.style.touchAction = "none";
-    }
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.touchAction = previousTouchAction;
-    };
-  }, [isCoachOpen]);
 
   useEffect(() => {
     if (!isSessionRestored) {
@@ -164,18 +121,9 @@ export default function LiveSessionScreen() {
         severity,
         notes,
         events,
-        isCoachOpen,
-        coachDraft,
-        coachMessages,
       })
     );
-
-    saveCoachThread(coachThreadKey, {
-      roomLabel: `Now Playing: ${gameName}`,
-      messages: coachMessages,
-      draft: coachDraft,
-    });
-  }, [ballAdvanced, ballCount, category, coachDraft, coachMessages, coachThreadKey, currentBall, currentGame, elapsedSeconds, events, gameName, gameResults, isCoachOpen, isSessionRestored, notes, sessionState, severity, shot, storageKey]);
+  }, [ballAdvanced, ballCount, category, currentBall, currentGame, elapsedSeconds, events, gameResults, isSessionRestored, notes, sessionState, severity, shot, storageKey]);
 
   useEffect(() => {
     if (sessionState !== "Active") {
@@ -194,19 +142,6 @@ export default function LiveSessionScreen() {
       gameResultsRef.current.scrollTo({ left: gameResultsRef.current.scrollWidth, behavior: "smooth" });
     }
   }, [gameResults]);
-
-  useEffect(() => {
-    if (!isCoachOpen || !chatThreadRef.current) {
-      return;
-    }
-
-    const thread = chatThreadRef.current;
-    const frameId = window.requestAnimationFrame(() => {
-      thread.scrollTop = thread.scrollHeight;
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [coachMessages, isCoachOpen]);
 
   const recentEvents = [...events].reverse();
   const canPauseOrEnd = sessionState === "Active" || sessionState === "Paused";
@@ -282,69 +217,6 @@ export default function LiveSessionScreen() {
     });
   }
 
-  async function sendCoachMessage(text) {
-    const trimmed = text.trim();
-    if (!trimmed || isSending) {
-      return;
-    }
-
-    const userMessage = {
-      id: `m${nextMessageIdRef.current++}`,
-      sender: "You",
-      text: trimmed,
-      time: "Just now",
-    };
-    const nextMessages = [...coachMessages, userMessage];
-    setCoachMessages(nextMessages);
-    setCoachDraft("");
-    setChatError("");
-    setIsSending(true);
-
-    try {
-      const eventSummary = recentEvents.slice(0, 5).map((event) => ({
-        game: event.game,
-        ball: event.ball,
-        category: event.category,
-        shot: event.shot,
-        severity: event.severity,
-        notes: event.notes,
-      }));
-      const otherThreadContext = getOtherCoachThreadContext(coachThreadKey);
-      const response = await apiCoachChat({
-        persona: "PinCoach",
-        message: `We are in Now Playing. Game: ${gameName}. Location: ${location}. Play type: ${playType}. Session state: ${sessionState}. Current game: ${currentGame}. Current ball: ${currentBall}. User asks: ${trimmed}${otherThreadContext ? `
-
-Other room coach context:
-${otherThreadContext}` : ""}`,
-        machine_name: gameName !== "Unknown Game" ? gameName : null,
-        include_location: locationEnabled,
-        metadata: {
-          room: "Now Playing",
-          play_type: playType,
-          session_state: sessionState,
-          current_game: currentGame,
-          current_ball: currentBall,
-          recent_events: eventSummary,
-        },
-        recent_messages: nextMessages.slice(-6).map((entry) => ({ speaker: entry.sender, text: entry.text })),
-      });
-
-      setCoachMessages((current) => [
-        ...current,
-        {
-          id: `m${nextMessageIdRef.current++}`,
-          sender: response.persona || "PinCoach",
-          text: response.reply,
-          time: "Just now",
-        },
-      ]);
-    } catch (error) {
-      setChatError(error instanceof Error ? error.message : "Coach reply failed.");
-    } finally {
-      setIsSending(false);
-    }
-  }
-
   return (
     <div className="screen">
       <div className="phoneShell">
@@ -356,25 +228,15 @@ ${otherThreadContext}` : ""}`,
           <div className="topStatusSpacer" />
         </header>
 
-        {!isCoachOpen ? (
-          <div className="floatingCoachLayer">
-            <button type="button" className="floatingCoachButton" aria-label="Open PinCoach chat" onClick={() => setIsCoachOpen(true)}>
-              <div className="floatingCoachAvatar">
-                <Image src="/tilt-lab/flipcoach-avatar.png" alt="PinCoach avatar" fill sizes="58px" style={{ objectFit: "contain", objectPosition: "center" }} />
-              </div>
-            </button>
-          </div>
-        ) : null}
-
         <main className="content">
           <section className="heroCard">
             <div className="heroArt">
-              <Image src="/tilt-lab/flipcoach-hero.png" alt="PinCoach" fill sizes="120px" style={{ objectFit: "contain", objectPosition: "left top" }} />
+              <Image src="/classroom/video-room.png" alt="Now Playing" fill sizes="120px" style={{ objectFit: "contain", objectPosition: "left top" }} />
             </div>
             <div className="heroContent">
-              <div className="heroTitle">PinCoach</div>
-              <div className="heroSubtitle">Live Session Coach</div>
-              <div className="heroMessage">Log mistakes while you play and ask for one quick adjustment at a time. This chat thread stays inside Now Playing and does not show up in other rooms.</div>
+              <div className="heroTitle">Now Playing</div>
+              <div className="heroSubtitle">Live Session Tracking</div>
+              <div className="heroMessage">Log mistakes while you play, capture reference shots, and keep the current game organized one ball at a time.</div>
             </div>
             <div className="heroBubble">
               <div className="heroBubbleTitle">{gameName}</div>
@@ -499,67 +361,6 @@ ${otherThreadContext}` : ""}`,
             </div>
           </div>
         ) : null}
-
-        {isCoachOpen ? (
-          <div className="chatOverlay">
-            <div className="chatBackdrop" onClick={() => setIsCoachOpen(false)} />
-            <div className="chatPanel">
-              <div className="chatHeader">
-                <button type="button" className="chatBackButton" aria-label="Close chat" onClick={() => setIsCoachOpen(false)}>&#8249;</button>
-                <div className="chatHeaderTitle">PinCoach</div>
-                <div className="chatHeaderAvatar">
-                  <Image src="/tilt-lab/flipcoach-avatar.png" alt="PinCoach avatar" fill sizes="52px" style={{ objectFit: "contain", objectPosition: "center" }} />
-                </div>
-              </div>
-
-              <div className="chatCoachRow">
-                <div className="chatCoachAvatar">
-                  <Image src="/tilt-lab/flipcoach-avatar.png" alt="PinCoach avatar" fill sizes="56px" style={{ objectFit: "contain", objectPosition: "center" }} />
-                </div>
-                <div className="chatCoachMeta">
-                  <div className="chatCoachName">PinCoach</div>
-                  <div className="chatCoachRole">Live Session Coach</div>
-                </div>
-                <button type="button" className="chatCloseButton" aria-label="Close chat" onClick={() => setIsCoachOpen(false)}>×</button>
-              </div>
-
-              <div className="chatThread" ref={chatThreadRef}>
-                {coachMessages.length ? coachMessages.map((message) => (
-                  <div key={message.id} className={`chatMessageWrap ${message.sender === "You" ? "chatMessageWrapUser" : ""}`}>
-                    <div className={`chatBubble ${message.sender === "You" ? "chatBubbleUser" : ""}`}>{message.text}</div>
-                    <div className="chatTime">{message.time}</div>
-                  </div>
-                )) : <div className="chatEmpty">Ask what to focus on this ball, what pattern is showing up, or what the safest next plan is.</div>}
-              </div>
-
-              <div className="chatReplies">
-                {QUICK_REPLIES.map((reply) => (
-                  <button key={reply} type="button" className="chatReplyChip" onClick={() => sendCoachMessage(reply)} disabled={isSending}>{reply}</button>
-                ))}
-              </div>
-
-              <div className="chatComposer">
-                <button type="button" className="chatEmojiButton" aria-label="Emoji">?</button>
-                <input
-                  type="text"
-                  value={coachDraft}
-                  onChange={(event) => setCoachDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      sendCoachMessage(coachDraft);
-                    }
-                  }}
-                  placeholder="Ask PinCoach..."
-                />
-                <button type="button" className="chatSendButton" onClick={() => sendCoachMessage(coachDraft)} disabled={isSending || !coachDraft.trim()}>
-                  {isSending ? "..." : "\u27A4"}
-                </button>
-              </div>
-              {chatError ? <div className="chatError">{chatError}</div> : null}
-            </div>
-          </div>
-        ) : null}
       </div>
 
       <style jsx>{`
@@ -567,13 +368,9 @@ ${otherThreadContext}` : ""}`,
         .phoneShell { position: relative; width: 390px; max-width: 100%; min-height: 844px; display: flex; flex-direction: column; overflow: hidden; border-radius: 34px; border: 8px solid #05070d; background: linear-gradient(180deg, #102649 0%, #08172d 100%); color: #f3f7ff; box-shadow: 0 28px 70px rgba(0, 0, 0, 0.28); }
         .topBar { min-height: 92px; display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; gap: 10px; padding: 28px 18px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
         h1 { margin: 0; text-align: center; font-size: 19px; font-weight: 700; color: #f7f4e6; }
-        .navArrow,.floatingCoachButton,.chatBackButton,.chatCloseButton,.chatReplyChip,.chatEmojiButton,.chatSendButton,.navItem,.controlButton,.chipButton,.primaryButton,.endSessionButton,.modalButton { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+        .navArrow,.navItem,.controlButton,.chipButton,.primaryButton,.endSessionButton,.modalButton { cursor: pointer; -webkit-tap-highlight-color: transparent; }
         .navArrow { width: 36px; height: 36px; border: 0; border-radius: 999px; background: transparent; color: #d7e4ff; font-size: 24px; line-height: 1; }
         .topStatusSpacer { width: 40px; }
-        .floatingCoachLayer { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
-        .floatingCoachButton { position: fixed; top: 72px; right: max(15px, calc((100vw - 390px) / 2 + 15px)); z-index: 41; pointer-events: auto; width: 62px; height: 62px; padding: 0; border: 1px solid rgba(139,196,255,0.55); border-radius: 50%; background: radial-gradient(circle at 30% 30%, rgba(94,178,255,0.85), rgba(19,54,122,0.98)); box-shadow: 0 0 0 3px rgba(139,196,255,0.18), 0 0 24px rgba(58,146,255,0.32); }
-        .floatingCoachAvatar,.chatHeaderAvatar,.chatCoachAvatar { position: relative; overflow: hidden; border-radius: 50%; background: radial-gradient(circle at 50% 35%, rgba(10,19,42,0.9), rgba(4,10,24,0.98)); }
-        .floatingCoachAvatar { position: absolute; inset: 5px; }
         .content { flex: 1; overflow-y: auto; padding: 14px; display: grid; gap: 12px; }
         .heroCard,.sectionCard,.eventCard,.scoreModal { border-radius: 18px; border: 1px solid rgba(117,148,211,0.2); background: linear-gradient(180deg, rgba(18,34,69,0.96), rgba(9,18,38,0.98)); box-shadow: 0 10px 24px rgba(0,0,0,0.2); }
         .heroCard,.sectionCard { padding: 14px; }
@@ -601,9 +398,9 @@ ${otherThreadContext}` : ""}`,
         .controlButton { width: 100%; min-height: 44px; padding: 0 12px; background: rgba(255,255,255,0.08); color: #f3f7ff; }
         .controlButtonPrimary,.primaryButton,.modalButton { background: linear-gradient(180deg, #4ca3ff 0%, #2f79e7 100%); color: #fff; }
         .controlButtonDanger { background: linear-gradient(180deg, #f07c6d 0%, #cb5648 100%); }
-        .controlButton:disabled,.chatSendButton:disabled { opacity: 0.55; cursor: default; }
+        .controlButton:disabled { opacity: 0.55; cursor: default; }
         .gameTimesRow { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
-        .gameTimesRow::-webkit-scrollbar,.chatReplies::-webkit-scrollbar { display: none; }
+        .gameTimesRow::-webkit-scrollbar { display: none; }
         .gameTimePill,.chipButton { min-height: 38px; padding: 0 12px; background: rgba(255,255,255,0.06); color: #dce7ff; border: 1px solid rgba(165,190,232,0.18); }
         .gameTimePill { flex: 0 0 auto; display: inline-flex; align-items: center; border-radius: 999px; font-size: 12px; font-weight: 700; }
         .chipButtonActive { background: linear-gradient(180deg, #3d88f6 0%, #2a67d8 100%); border-color: rgba(154,195,255,0.5); color: #fff; }
@@ -612,7 +409,7 @@ ${otherThreadContext}` : ""}`,
         .notesInput,.scoreInput { width: 100%; border-radius: 12px; border: 1px solid rgba(138,173,232,0.24); background: rgba(41,72,118,0.42); color: #f3f7ff; font-size: 14px; font-family: inherit; outline: 0; }
         .notesInput { min-height: 78px; margin: 6px 0 12px; padding: 12px; resize: none; }
         .scoreInput { min-height: 46px; margin-top: 14px; padding: 0 12px; }
-        .notesInput::placeholder,.scoreInput::placeholder,.chatComposer input::placeholder { color: #9db1d1; }
+        .notesInput::placeholder,.scoreInput::placeholder { color: #9db1d1; }
         .primaryButton,.modalButton,.endSessionButton { min-height: 42px; padding: 0 14px; }
         .endSessionButton { width: 100%; margin-top: 12px; background: rgba(255,255,255,0.08); color: #f3f7ff; }
         .eventList { display: grid; gap: 10px; }
@@ -626,45 +423,12 @@ ${otherThreadContext}` : ""}`,
         .eventMeta { margin-top: 6px; color: #9db7dd; font-size: 12px; font-weight: 700; }
         .eventNotes { margin-top: 8px; color: #dce7ff; font-size: 13px; line-height: 1.45; }
         .modalScrim { position: absolute; inset: 0; z-index: 60; }
-        .chatOverlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 24px 14px; }
-        .modalScrim { display: flex; align-items: center; justify-content: center; padding: 20px; background: rgba(3,10,19,0.72); }
-        .scoreModal { width: 100%; max-width: 320px; padding: 18px; }
-        .scoreModalActions { margin-top: 14px; justify-content: flex-end; }
-        .modalButtonGhost { background: rgba(255,255,255,0.08); color: #f3f7ff; }
-        .chatBackdrop { position: absolute; inset: 0; background: rgba(3,8,17,0.58); backdrop-filter: blur(4px); }
-        .chatPanel { position: relative; z-index: 1; width: 100%; max-width: 358px; height: min(775px, calc(100vh - 90px)); min-height: 775px; max-height: calc(100vh - 90px); display: flex; flex-direction: column; border-radius: 22px; background: linear-gradient(180deg, rgba(11,21,43,0.98), rgba(6,13,27,0.99)); border-top: 1px solid rgba(101,128,183,0.32); box-shadow: 0 -22px 44px rgba(0,0,0,0.34); min-width: 0; overflow: hidden; }
-        .chatHeader { display: grid; grid-template-columns: 40px minmax(0,1fr) 52px; align-items: center; gap: 10px; padding: 12px 14px 10px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-        .chatBackButton,.chatCloseButton,.chatEmojiButton,.chatSendButton { border: 0; border-radius: 999px; background: rgba(255,255,255,0.08); color: #e6efff; }
-        .chatBackButton { width: 40px; height: 40px; font-size: 26px; line-height: 1; }
-        .chatHeaderTitle { text-align: center; font-size: 16px; font-weight: 800; color: #f1f6ff; }
-        .chatHeaderAvatar { width: 52px; height: 52px; justify-self: end; }
-        .chatCoachRow { display: grid; grid-template-columns: 56px minmax(0,1fr) 34px; align-items: center; gap: 10px; padding: 12px 16px 8px; }
-        .chatCoachAvatar { width: 56px; height: 56px; }
-        .chatCoachName { color: #f4f7ff; font-size: 16px; font-weight: 800; }
-        .chatCoachRole { margin-top: 3px; color: #9fb6dd; font-size: 12px; font-weight: 700; }
-        .chatCloseButton { width: 34px; height: 34px; font-size: 24px; line-height: 1; }
-        .chatThread { flex: 1; min-width: 0; overflow-y: auto; overflow-x: hidden; padding: 4px 16px 12px; display: grid; gap: 12px; }
-        .chatEmpty { padding: 10px 12px; border-radius: 16px; background: rgba(24,44,80,0.82); color: #8fb7ff; font-size: 12px; font-weight: 700; line-height: 1.45; }
-        .chatMessageWrap { display: grid; justify-items: start; gap: 4px; min-width: 0; }
-        .chatMessageWrapUser { justify-items: end; }
-        .chatBubble { min-width: 0; max-width: 88%; padding: 10px 12px; border-radius: 16px 16px 16px 6px; background: rgba(24,44,80,0.95); color: #dce7ff; font-size: 14px; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; }
-        .chatBubbleUser { border-radius: 16px 16px 6px 16px; background: linear-gradient(180deg, rgba(65,140,255,0.95), rgba(46,103,214,0.95)); color: #fff; }
-        .chatTime { color: #8ca4ca; font-size: 11px; font-weight: 700; }
-        .chatReplies { display: flex; gap: 8px; overflow-x: auto; padding: 0 16px 10px; scrollbar-width: none; }
-        .chatReplyChip { flex: 0 0 auto; min-height: 34px; padding: 0 12px; border: 1px solid rgba(123,153,211,0.16); border-radius: 999px; background: rgba(18,33,64,0.92); color: #d6e4ff; font-size: 12px; font-weight: 700; }
-        .chatComposer { display: grid; grid-template-columns: 38px minmax(0,1fr) 48px; gap: 8px; align-items: center; padding: 0 16px 16px; }
-        .chatEmojiButton { width: 38px; height: 38px; font-size: 16px; }
-        .chatComposer input { height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid rgba(123,153,211,0.16); background: rgba(18,33,64,0.92); color: #eff5ff; font-size: 14px; }
-        .chatSendButton { height: 40px; font-size: 18px; font-weight: 800; }
-        .chatError { padding: 0 16px 16px; color: #ffb6b6; font-size: 12px; font-weight: 700; }
         .bottomNav { height: 74px; display: grid; grid-template-columns: repeat(5, 1fr); align-items: center; padding: 6px 6px 10px; background: #f6f4ef; border-top: 1px solid rgba(8,23,45,0.12); }
         .navItem { width: 100%; min-height: 100%; padding: 0; border: 0; background: transparent; color: #7f8694; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; font-size: 12px; font-weight: 600; }
         .navIcon { font-size: 18px; line-height: 1; }
         @media (max-width: 520px) {
           .screen { padding: 0; background: #08172d; }
           .phoneShell { width: 100%; min-height: 100vh; border: 0; border-radius: 0; }
-          .floatingCoachButton { top: 15px; right: 18px; }
-          .chatPanel { min-height: 72%; }
         }
       `}</style>
     </div>

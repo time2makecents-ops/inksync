@@ -1,15 +1,13 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { navigateBackWithinApp } from "../../lib/navigation";
 
-import { apiCoachChat } from "../../lib/api";
 import PinballNameInput from "./PinballNameInput";
 import ClassroomCameraCard from "./ClassroomCameraCard";
 import RoomShell from "./RoomShell";
-import { getOtherCoachThreadContext, loadCoachThread, saveCoachThread } from "../../lib/coachThreads";
 
 const NAV_ITEMS = [
   { label: "Account", href: "/account" },
@@ -90,175 +88,14 @@ const YOUTUBE_CARDS = {
   ],
 };
 
-const THREAD_KEY = "video-room";
-
-const COACH_NAME = "FlipperCoach";
-const COACH_PERSONA = "PinCoach";
-const COACH_PROMPTS = [
-  "What videos should I start with?",
-  "What search phrase should I use?",
-  "What should I study before playing?",
-];
-
-function createMessage(id, speaker, text, pending = false) {
-  return {
-    id,
-    speaker,
-    text,
-    pending,
-    createdAt: Date.now(),
-  };
-}
-
 export default function VideoRoomScreen() {
   const router = useRouter();
-  const coachThreadRef = useRef(null);
   const [videoMode, setVideoMode] = useState("general");
   const [focusArea, setFocusArea] = useState("Control");
   const [machineName, setMachineName] = useState("");
-  const [assistantQuery, setAssistantQuery] = useState("");
-  const [assistantReply, setAssistantReply] = useState("");
-  const [assistantLoading, setAssistantLoading] = useState(false);
-  const [assistantError, setAssistantError] = useState("");
-  const [isCoachOpen, setIsCoachOpen] = useState(false);
-  const [coachDraft, setCoachDraft] = useState("");
-  const [coachMessages, setCoachMessages] = useState([]);
-  const [coachPendingCount, setCoachPendingCount] = useState(0);
-  const [isThreadHydrated, setIsThreadHydrated] = useState(false);
-
-
-  useEffect(() => {
-    const loaded = loadCoachThread(THREAD_KEY, { roomLabel: "Video Room" });
-    setCoachMessages(loaded.messages);
-    setCoachDraft(loaded.draft);
-    setIsThreadHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!isThreadHydrated) {
-      return;
-    }
-
-    saveCoachThread(THREAD_KEY, {
-      roomLabel: "Video Room",
-      messages: coachMessages,
-      draft: coachDraft,
-    });
-  }, [coachDraft, coachMessages, isThreadHydrated]);
 
   function handleBack() {
     navigateBackWithinApp(router, "/classroom");
-  }
-
-  async function handleAssistantSubmit(event) {
-    event?.preventDefault();
-    const trimmedQuery = assistantQuery.trim();
-    if (!trimmedQuery || assistantLoading) {
-      return;
-    }
-
-    setAssistantLoading(true);
-    setAssistantError("");
-
-    try {
-      const response = await apiCoachChat({
-        persona: COACH_PERSONA,
-        message: `Help me find the right pinball videos. Focus: ${focusArea}. Mode: ${videoMode}. Machine: ${machineName.trim() || "general"}. Request: ${trimmedQuery}`,
-        machine_name: videoMode === "machine" && machineName.trim() ? machineName.trim() : null,
-        include_location: false,
-        recent_messages: [],
-      });
-
-      setAssistantReply(response.reply);
-    } catch (error) {
-      setAssistantError(error instanceof Error ? error.message : "Assistant reply failed.");
-    } finally {
-      setAssistantLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    if (!isCoachOpen || !coachThreadRef.current) {
-      return;
-    }
-
-    const thread = coachThreadRef.current;
-    const frameId = window.requestAnimationFrame(() => {
-      thread.scrollTop = thread.scrollHeight;
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [coachMessages, isCoachOpen]);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const previousTouchAction = document.body.style.touchAction;
-
-    if (isCoachOpen) {
-      document.body.style.overflow = "hidden";
-      document.body.style.touchAction = "none";
-    }
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.touchAction = previousTouchAction;
-    };
-  }, [isCoachOpen]);
-
-  async function handleCoachSend() {
-    const trimmedDraft = coachDraft.trim();
-    if (!trimmedDraft) {
-      return;
-    }
-
-    const requestId = `coach-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    const userMessage = createMessage(`${requestId}-user`, "You", trimmedDraft);
-    const pendingMessage = createMessage(`${requestId}-pending`, COACH_NAME, "...", true);
-
-    setCoachMessages((current) => [...current, userMessage, pendingMessage]);
-    setCoachPendingCount((current) => current + 1);
-    setCoachDraft("");
-
-    try {
-      const otherThreadContext = getOtherCoachThreadContext(THREAD_KEY);
-      const response = await apiCoachChat({
-        persona: COACH_PERSONA,
-        message: `We are in Video Room. Focus: ${focusArea}. Mode: ${videoMode}. Machine: ${machineName.trim() || "general"}. User asks: ${trimmedDraft}${otherThreadContext ? `
-
-Other room coach context:
-${otherThreadContext}` : ""}`,
-        machine_name: videoMode === "machine" && machineName.trim() ? machineName.trim() : null,
-        include_location: false,
-        recent_messages: [...coachMessages, userMessage]
-          .filter((entry) => !entry.pending)
-          .slice(-6)
-          .map((entry) => ({ speaker: entry.speaker, text: entry.text })),
-      });
-
-      setCoachMessages((current) => current.map((entry) => (
-        entry.id === pendingMessage.id
-          ? {
-              ...entry,
-              speaker: COACH_NAME,
-              text: response.reply,
-              pending: false,
-            }
-          : entry
-      )));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Coach reply failed.";
-      setCoachMessages((current) => current.map((entry) => (
-        entry.id === pendingMessage.id
-          ? {
-              ...entry,
-              text: message,
-              pending: false,
-            }
-          : entry
-      )));
-    } finally {
-      setCoachPendingCount((current) => Math.max(0, current - 1));
-    }
   }
 
   const videoResults = useMemo(() => {
@@ -281,15 +118,6 @@ ${otherThreadContext}` : ""}`,
 
   return (
     <RoomShell title="Video Room" onBack={handleBack} navItems={NAV_ITEMS} onNavigate={(href) => router.push(href)} activeNavLabel="Classroom">
-      {!isCoachOpen ? (
-        <div className="floatingCoachLayer">
-          <button type="button" className="floatingCoachButton" aria-label="Open FlipperCoach chat" onClick={() => setIsCoachOpen(true)}>
-            <div className="floatingCoachAvatar">
-              <Image src="/tilt-lab/flipcoach-avatar.png" alt="FlipperCoach avatar" fill sizes="58px" style={{ objectFit: "contain", objectPosition: "center" }} />
-            </div>
-          </button>
-        </div>
-      ) : null}
 
       <main className="content">
         <section className="heroCard">
@@ -336,17 +164,6 @@ ${otherThreadContext}` : ""}`,
         </section>
 
         <section className="sectionCard">
-          <div className="sectionKicker">Need Something Else?</div>
-          <div className="assistantTitle">Ask the AI assistant what to search for</div>
-          <form className="assistantForm" onSubmit={handleAssistantSubmit}>
-            <input type="text" value={assistantQuery} onChange={(event) => setAssistantQuery(event.target.value)} placeholder="I want videos about recovering from tilt warnings..." />
-            <button type="submit" className="assistantButton" disabled={assistantLoading || !assistantQuery.trim()}>{assistantLoading ? "..." : "\u27A4"}</button>
-          </form>
-          {assistantReply ? <div className="assistantReply">{assistantReply}</div> : null}
-          {assistantError ? <div className="assistantError">{assistantError}</div> : null}
-        </section>
-
-        <section className="sectionCard">
           <div className="sectionKicker">Suggested Video Searches</div>
           <div className="videoList">
             {videoResults.map((card) => (
@@ -363,80 +180,6 @@ ${otherThreadContext}` : ""}`,
         </section>
       </main>
 
-      {isCoachOpen ? (
-        <div className="coachOverlay">
-          <div className="coachBackdrop" onClick={() => setIsCoachOpen(false)} />
-          <div className="coachPanel">
-            <div className="coachHeader">
-              <button type="button" className="coachBackButton" aria-label="Close chat" onClick={() => setIsCoachOpen(false)}>
-                &#8249;
-              </button>
-              <div className="coachHeaderTitle">{COACH_NAME}</div>
-              <div className="coachHeaderAvatar">
-                <Image src="/tilt-lab/flipcoach-avatar.png" alt="FlipperCoach avatar" fill sizes="52px" style={{ objectFit: "contain", objectPosition: "center" }} />
-              </div>
-            </div>
-
-            <div className="coachCoachRow">
-              <div className="coachCoachAvatar">
-                <Image src="/tilt-lab/flipcoach-avatar.png" alt="FlipperCoach avatar" fill sizes="56px" style={{ objectFit: "contain", objectPosition: "center" }} />
-              </div>
-              <div className="coachCoachMeta">
-                <div className="coachCoachName">{COACH_NAME}</div>
-                <div className="coachCoachRole">Video Room Coach</div>
-              </div>
-              <button type="button" className="coachCloseButton" aria-label="Close chat" onClick={() => setIsCoachOpen(false)}>
-                ×
-              </button>
-            </div>
-
-            <div className="coachPromptRow">
-              {COACH_PROMPTS.map((prompt) => (
-                <button key={prompt} type="button" className="coachPromptChip" onClick={() => setCoachDraft(prompt)}>{prompt}</button>
-              ))}
-            </div>
-
-            <div className="coachThread" ref={coachThreadRef}>
-              {coachMessages.length ? (
-                coachMessages.map((entry) => (
-                  <div key={entry.id} className={`coachLine ${entry.speaker === "You" ? "coachLineUser" : ""}`}>
-                    <div className={`coachBubble ${entry.speaker === "You" ? "coachBubbleUser" : ""}`}>{entry.text}</div>
-                    <div className="coachMeta">{entry.speaker}</div>
-                  </div>
-                ))
-              ) : (
-                <div className="coachEmpty">Ask for a search phrase, a channel direction, or what kind of clip would help most before your next session.</div>
-              )}
-            </div>
-
-            <div className="composerRow coachComposerRow">
-              <input
-                type="text"
-                aria-label="Type your message"
-                placeholder={`Ask ${COACH_NAME} what to watch...`}
-                value={coachDraft}
-                onChange={(event) => setCoachDraft(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter") {
-                    event.preventDefault();
-                    handleCoachSend();
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="sendButton"
-                aria-label="Send message"
-                onClick={handleCoachSend}
-                disabled={!coachDraft.trim()}
-              >
-                {coachPendingCount ? "..." : "\u27A4"}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
       <style jsx>{`
         .content {
           flex: 1;
@@ -446,41 +189,6 @@ ${otherThreadContext}` : ""}`,
           display: grid;
           gap: 14px;
           min-width: 0;
-        }
-
-        .floatingCoachLayer {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          z-index: 40;
-          pointer-events: none;
-        }
-
-        .floatingCoachButton {
-          position: fixed;
-          top: 24px;
-          right: max(15px, calc((100vw - 390px) / 2 + 15px));
-          z-index: 41;
-          pointer-events: auto;
-          width: 62px;
-          height: 62px;
-          padding: 0;
-          border: 1px solid rgba(139, 196, 255, 0.55);
-          border-radius: 50%;
-          background: radial-gradient(circle at 30% 30%, rgba(94, 178, 255, 0.85), rgba(19, 54, 122, 0.98));
-          box-shadow: 0 0 0 3px rgba(139, 196, 255, 0.18), 0 0 24px rgba(58, 146, 255, 0.32);
-          cursor: pointer;
-          -webkit-tap-highlight-color: transparent;
-        }
-
-        .floatingCoachAvatar {
-          position: absolute;
-          inset: 5px;
-          overflow: hidden;
-          border-radius: 50%;
-          background: radial-gradient(circle at 50% 35%, rgba(10, 19, 42, 0.9), rgba(4, 10, 24, 0.98));
         }
 
         .heroCard, .sectionCard {
@@ -521,7 +229,7 @@ ${otherThreadContext}` : ""}`,
           color: #f7f4e6;
         }
 
-        .heroCopy p, .modeHint, .assistantReply, .assistantError, .videoCopy {
+        .heroCopy p, .modeHint, .videoCopy {
           margin: 10px 0 0;
           color: #c5d5ee;
           font-size: 14px;
@@ -532,7 +240,7 @@ ${otherThreadContext}` : ""}`,
           padding: 14px;
         }
 
-        .modeRow, .focusScroller, .coachPromptRow {
+        .modeRow, .focusScroller {
           display: flex;
           gap: 8px;
           overflow-x: auto;
@@ -540,11 +248,11 @@ ${otherThreadContext}` : ""}`,
           margin-top: 10px;
         }
 
-        .modeRow::-webkit-scrollbar, .focusScroller::-webkit-scrollbar, .coachPromptRow::-webkit-scrollbar {
+        .modeRow::-webkit-scrollbar, .focusScroller::-webkit-scrollbar {
           display: none;
         }
 
-        .modeButton, .focusChip, .coachPromptChip {
+        .modeButton, .focusChip {
           flex: 0 0 auto;
           padding: 10px 12px;
           border-radius: 999px;
@@ -568,53 +276,10 @@ ${otherThreadContext}` : ""}`,
           margin-top: 12px;
         }
 
-        .machineLabel, .assistantTitle {
+        .machineLabel {
           color: #f0f5ff;
           font-size: 14px;
           font-weight: 800;
-        }
-
-        .assistantForm {
-          min-width: 0;
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) 46px;
-          gap: 8px;
-          margin-top: 10px;
-        }
-
-        .assistantForm input, .composerRow input {
-          min-width: 0;
-          width: 100%;
-          min-height: 40px;
-          padding: 0 12px;
-          border-radius: 10px;
-          border: 1px solid rgba(138, 173, 232, 0.24);
-          background: rgba(41, 72, 118, 0.42);
-          color: #f3f7ff;
-          font-size: 14px;
-          outline: 0;
-        }
-
-        .assistantForm input::placeholder, .composerRow input::placeholder {
-          color: #9db1d1;
-        }
-
-        .assistantButton, .sendButton {
-          border: 0;
-          border-radius: 10px;
-          background: linear-gradient(180deg, #4ca3ff 0%, #2f79e7 100%);
-          color: #ffffff;
-          font-size: 14px;
-          font-weight: 800;
-          cursor: pointer;
-        }
-
-        .assistantButton {
-          min-height: 40px;
-        }
-
-        .assistantError {
-          color: #ffb6b6;
         }
 
         .videoList {
@@ -647,7 +312,7 @@ ${otherThreadContext}` : ""}`,
           font-weight: 800;
         }
 
-        .videoSource, .modeHint, .coachEmpty {
+        .videoSource, .modeHint {
           color: #8fb7ff;
           font-size: 12px;
           font-weight: 700;
@@ -664,199 +329,6 @@ ${otherThreadContext}` : ""}`,
           white-space: nowrap;
         }
 
-        .coachOverlay {
-          position: fixed;
-          inset: 0;
-          z-index: 50;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          padding: 24px 14px;
-        }
-
-        .coachBackdrop {
-          position: absolute;
-          inset: 0;
-          background: rgba(2, 8, 20, 0.6);
-          backdrop-filter: blur(3px);
-        }
-
-        .coachPanel {
-          position: relative;
-          z-index: 1;
-          width: 100%;
-          max-width: 358px;
-          height: min(775px, calc(100vh - 90px));
-          min-height: 775px;
-          max-height: calc(100vh - 90px);
-          border-radius: 22px;
-          border: 1px solid rgba(113, 156, 230, 0.32);
-          background:
-            radial-gradient(circle at top, rgba(45, 92, 168, 0.22), rgba(11, 21, 43, 0) 34%),
-            linear-gradient(180deg, rgba(14, 28, 59, 0.98), rgba(7, 14, 29, 0.98));
-          box-shadow: 0 20px 40px rgba(0, 0, 0, 0.38);
-          display: grid;
-          grid-template-rows: auto auto auto minmax(0, 1fr) auto;
-          min-height: 0;
-          min-width: 0;
-          overflow: hidden;
-        }
-
-        .coachHeader {
-          display: grid;
-          grid-template-columns: 36px 1fr 52px;
-          align-items: center;
-          gap: 8px;
-          padding: 14px 14px 12px;
-          border-bottom: 1px solid rgba(144, 177, 234, 0.16);
-          background: linear-gradient(180deg, rgba(28, 54, 102, 0.95), rgba(18, 35, 71, 0.95));
-        }
-
-        .coachBackButton {
-          width: 36px;
-          height: 36px;
-          border: 0;
-          border-radius: 999px;
-          background: rgba(255, 255, 255, 0.06);
-          color: #8fc2ff;
-          font-size: 24px;
-          line-height: 1;
-          cursor: pointer;
-        }
-
-        .coachHeaderTitle {
-          text-align: center;
-          font-size: 18px;
-          font-weight: 800;
-          color: #f4f7ff;
-        }
-
-        .coachHeaderAvatar, .coachCoachAvatar {
-          position: relative;
-          overflow: hidden;
-          border-radius: 50%;
-          border: 1px solid rgba(109, 175, 255, 0.42);
-          box-shadow: 0 0 0 3px rgba(67, 126, 210, 0.18);
-          background: radial-gradient(circle at 50% 35%, rgba(10, 19, 42, 0.9), rgba(4, 10, 24, 0.98));
-        }
-
-        .coachHeaderAvatar {
-          width: 52px;
-          height: 52px;
-        }
-
-        .coachCoachRow {
-          display: grid;
-          grid-template-columns: 56px minmax(0, 1fr) 28px;
-          align-items: center;
-          gap: 12px;
-          padding: 14px;
-          border-bottom: 1px solid rgba(144, 177, 234, 0.1);
-        }
-
-        .coachCoachAvatar {
-          width: 56px;
-          height: 56px;
-        }
-
-        .coachCoachName {
-          font-size: 18px;
-          font-weight: 800;
-          color: #f3f7ff;
-        }
-
-        .coachCoachRole {
-          margin-top: 2px;
-          font-size: 14px;
-          color: #56afff;
-        }
-
-        .coachCloseButton {
-          width: 28px;
-          height: 28px;
-          border: 0;
-          background: transparent;
-          color: #8fb7ff;
-          font-size: 28px;
-          line-height: 1;
-          cursor: pointer;
-        }
-
-        .coachThread {
-          min-height: 0;
-          min-width: 0;
-          overflow-y: auto;
-          overflow-x: hidden;
-          display: grid;
-          gap: 10px;
-          padding: 0 12px 10px;
-          scrollbar-width: thin;
-        }
-
-        .coachLine {
-          display: grid;
-          justify-items: start;
-          gap: 4px;
-          min-width: 0;
-        }
-
-        .coachLineUser {
-          justify-items: end;
-        }
-
-        .coachBubble {
-          min-width: 0;
-          max-width: 82%;
-          padding: 12px 14px;
-          border-radius: 14px;
-          background: rgba(24, 41, 76, 0.95);
-          color: #d9e7ff;
-          font-size: 14px;
-          line-height: 1.45;
-          white-space: pre-wrap;
-          overflow-wrap: anywhere;
-          word-break: break-word;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-        }
-
-        .coachBubbleUser {
-          background: linear-gradient(180deg, rgba(52, 104, 191, 0.95), rgba(31, 76, 158, 0.95));
-          color: #f6fbff;
-        }
-
-        .coachMeta {
-          padding: 0 4px;
-          font-size: 11px;
-          color: #7e93b9;
-        }
-
-        .coachEmpty {
-          margin-top: 0;
-          padding: 12px 14px;
-          border-radius: 14px;
-          background: rgba(24, 41, 76, 0.82);
-          line-height: 1.45;
-        }
-
-        .coachComposerRow {
-          padding: 0 12px 12px;
-        }
-
-        .composerRow {
-          display: grid;
-          grid-template-columns: 1fr 48px;
-          gap: 10px;
-        }
-
-        .sendButton {
-          height: 40px;
-          font-size: 18px;
-        }
-
-        .sendButton:disabled {
-          opacity: 0.55;
-          cursor: default;
-        }
       `}</style>
     </RoomShell>
   );

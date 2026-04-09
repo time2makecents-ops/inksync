@@ -9,7 +9,6 @@ import { apiFetch } from "../../lib/api";
 import PinballNameInput from "./PinballNameInput";
 import ClassroomCameraCard from "./ClassroomCameraCard";
 import RoomShell from "./RoomShell";
-import RoomCoachOverlay from "./RoomCoachOverlay";
 
 const NAV_ITEMS = [
   { label: "Account", href: "/account" },
@@ -37,12 +36,6 @@ const UPCOMING_SECTIONS = {
     body: "This focus area is staying visible in the layout, but it is not part of the live fetch yet. Once we add it, this section will outline the safest opening plan and the early choices that reduce chaos on ball one.",
   },
 };
-
-const COACH_PROMPTS = [
-  "What should I fetch first?",
-  "How do I study this machine?",
-  "What should I focus on before playing?",
-];
 
 export default function MachineMasteryScreen() {
   const router = useRouter();
@@ -121,21 +114,6 @@ export default function MachineMasteryScreen() {
 
   return (
     <RoomShell title="Machine Mastery" onBack={handleBack} navItems={NAV_ITEMS} onNavigate={(href) => router.push(href)} activeNavLabel="Classroom" shellId="machine-mastery-top">
-      <RoomCoachOverlay
-        threadKey="machine-mastery"
-        roomLabel="Machine Mastery"
-        prompts={COACH_PROMPTS}
-        placeholder="Ask FlipperCoach about machine prep..."
-        emptyCopy="Ask what to fetch first, how to study a machine, or what to focus on before stepping up."
-        requestBuilder={({ draft, recentMessages, persona }) => ({
-          persona,
-          message: `We are in Machine Mastery. Focus area: ${activeArea}. Machine: ${machineName.trim() || "not set"}. User asks: ${draft}`,
-          machine_name: machineName.trim() || null,
-          include_location: false,
-          recent_messages: recentMessages,
-        })}
-      />
-
       <main className="content">
         <section className="heroCard">
           <div className="heroImageWrap">

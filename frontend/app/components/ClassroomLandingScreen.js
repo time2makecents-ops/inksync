@@ -8,7 +8,6 @@ import { navigateBackWithinApp } from "../../lib/navigation";
 import PinballNameInput from "./PinballNameInput";
 import ClassroomCameraCard from "./ClassroomCameraCard";
 import RoomShell from "./RoomShell";
-import RoomCoachOverlay from "./RoomCoachOverlay";
 
 const NAV_ITEMS = [
   { label: "Account", href: "/account" },
@@ -16,12 +15,6 @@ const NAV_ITEMS = [
   { label: "PinMap", href: "/pinmap" },
   { label: "Home", href: "/" },
   { label: "Classroom", href: "/classroom" },
-];
-
-const COACH_PROMPTS = [
-  "What should I work on first?",
-  "How should I use this room?",
-  "What should I focus on next?",
 ];
 
 export default function ClassroomLandingScreen({ data }) {
@@ -34,21 +27,6 @@ export default function ClassroomLandingScreen({ data }) {
 
   return (
     <RoomShell title={data.title} onBack={handleBack} navItems={NAV_ITEMS} onNavigate={(href) => router.push(href)} activeNavLabel="Classroom">
-      <RoomCoachOverlay
-        threadKey={data.title.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
-        roomLabel={data.title}
-        prompts={COACH_PROMPTS}
-        placeholder={`Ask FlipperCoach about ${data.title}...`}
-        emptyCopy={`Ask what to work on first, how to use ${data.title}, or what to focus on next.`}
-        requestBuilder={({ draft, recentMessages, persona }) => ({
-          persona,
-          message: `We are in ${data.title}. User asks: ${draft}`,
-          machine_name: null,
-          include_location: false,
-          recent_messages: recentMessages,
-        })}
-      />
-
       <main className="content">
         <section className="heroCard">
           <div className="heroImageWrap">

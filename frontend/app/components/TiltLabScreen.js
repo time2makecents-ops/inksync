@@ -1,13 +1,11 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { navigateBackWithinApp } from "../../lib/navigation";
 
-import { apiCoachChat } from "../../lib/api";
-import { getOtherCoachThreadContext, loadCoachThread, saveCoachThread } from "../../lib/coachThreads";
-import { formatHandedness, getStoredHandedness, setStoredHandedness } from "../../lib/userPreferences";
+import { formatHandedness, getStoredHandedness } from "../../lib/userPreferences";
 import PinballNameInput from "./PinballNameInput";
 import ClassroomCameraCard from "./ClassroomCameraCard";
 import RoomShell from "./RoomShell";
@@ -43,15 +41,6 @@ const LESSONS = [
   { id: 12, title: "Pressure Ball Discipline", description: "Control decision-making when the match is tight.", tier: "Tournament", progress: 0 },
 ];
 
-const INITIAL_MESSAGES = [];
-const THREAD_KEY = "tilt-lab";
-
-const QUICK_REPLIES = ["Why did I tilt", "Start next lesson", "Show exercise", "Explain tilt"];
-const HANDEDNESS_PROMPTS = [
-  { label: "I am left-handed", value: "left" },
-  { label: "I am right-handed", value: "right" },
-];
-
 const RECENTLY_VIEWED_GAMES = [
   "Godzilla (Stern)",
   "Jurassic Park (Stern)",
@@ -77,8 +66,6 @@ const DEFAULT_MOTION_SUPPORT = {
 
 const DISPLAY_ALPHA = 0.72;
 const FILTER_ALPHA = 0.88;
-const ZERO_AXES = { x: "0.00", y: "0.00", z: "0.00" };
-
 function formatAxis(value) {
   return Number(value ?? 0).toFixed(2);
 }
@@ -125,7 +112,6 @@ function getTrainerBand(magnitude) {
 
 export default function TiltLabScreen() {
   const router = useRouter();
-  const chatThreadRef = useRef(null);
   const lessonsListRef = useRef(null);
   const motionHandlerRef = useRef(null);
   const calibrationPeakRef = useRef({ x: 0, y: 0 });
@@ -135,13 +121,8 @@ export default function TiltLabScreen() {
   const peakResetRef = useRef(null);
   const [skillLevel, setSkillLevel] = useState("Beginner");
   const [gameName, setGameName] = useState("");
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [gamePicker, setGamePicker] = useState("");
-  const [draft, setDraft] = useState("");
   const [handedness, setHandedness] = useState("");
-  const [messages, setMessages] = useState(INITIAL_MESSAGES);
-  const [isSending, setIsSending] = useState(false);
-  const [isThreadHydrated, setIsThreadHydrated] = useState(false);
   const [motionSupport, setMotionSupport] = useState(DEFAULT_MOTION_SUPPORT);
   const [motionPermission, setMotionPermission] = useState("not requested");
   const [motionStatus, setMotionStatus] = useState("Enable motion and rehearse short side nudges.");
@@ -195,25 +176,8 @@ export default function TiltLabScreen() {
 
     const motionCtor = window.DeviceMotionEvent;
     const storedHandedness = getStoredHandedness();
-    const loaded = loadCoachThread(THREAD_KEY, {
-      roomLabel: "Tilt Lab",
-      initialMessages: INITIAL_MESSAGES,
-    });
 
     setHandedness(storedHandedness);
-    setDraft(loaded.draft);
-
-    if (loaded.hasSavedThread) {
-      setMessages(loaded.messages);
-    } else if (!storedHandedness) {
-      setMessages([
-        { id: "m-handedness", sender: "FlipCoach", text: "Before we build your tilt plan, are you left-handed or right-handed?", time: "Just now" },
-      ]);
-    } else {
-      setMessages(loaded.messages);
-    }
-
-    setIsThreadHydrated(true);
     setMotionSupport({
       checked: true,
       secureContext: window.isSecureContext,
@@ -233,46 +197,6 @@ export default function TiltLabScreen() {
       }
     };
   }, []);
-
-  useEffect(() => {
-    if (!isThreadHydrated) {
-      return;
-    }
-
-    saveCoachThread(THREAD_KEY, {
-      roomLabel: "Tilt Lab",
-      messages,
-      draft,
-    });
-  }, [draft, isThreadHydrated, messages]);
-
-  useEffect(() => {
-    if (!isChatOpen || !chatThreadRef.current) {
-      return;
-    }
-
-    const thread = chatThreadRef.current;
-    const frameId = window.requestAnimationFrame(() => {
-      thread.scrollTop = thread.scrollHeight;
-    });
-
-    return () => window.cancelAnimationFrame(frameId);
-  }, [isChatOpen, messages]);
-
-  useEffect(() => {
-    const previousOverflow = document.body.style.overflow;
-    const previousTouchAction = document.body.style.touchAction;
-
-    if (isChatOpen) {
-      document.body.style.overflow = "hidden";
-      document.body.style.touchAction = "none";
-    }
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.touchAction = previousTouchAction;
-    };
-  }, [isChatOpen]);
 
   useEffect(() => {
     if (!lessonsListRef.current) {
@@ -460,98 +384,6 @@ export default function TiltLabScreen() {
     }, 2200);
   }
 
-  function applyHandedness(nextHandedness) {
-    setStoredHandedness(nextHandedness);
-    setHandedness(nextHandedness);
-    setMessages((current) => {
-      const withoutPrompt = current.filter((entry) => entry.id !== "m-handedness");
-      return [
-        ...withoutPrompt,
-        { id: `handedness-user-${Date.now()}`, sender: "You", text: `I am ${nextHandedness}-handed.`, time: "Just now" },
-        { id: `handedness-coach-${Date.now() + 1}`, sender: "FlipCoach", text: `Understood. I will weight your ${nextHandedness} side as the dominant hand when we build drills and compare left-right control.`, time: "Just now" },
-      ];
-    });
-  }
-
-  async function sendMessage(text) {
-    const trimmed = text.trim();
-    if (!trimmed || isSending) {
-      return;
-    }
-
-    const userMessage = {
-      id: `user-${Date.now()}`,
-      sender: "You",
-      text: trimmed,
-      time: "Just now",
-    };
-    const pendingId = `coach-pending-${Date.now() + 1}`;
-
-    setMessages((current) => [
-      ...current,
-      userMessage,
-      { id: pendingId, sender: "FlipCoach", text: "...", time: "Thinking..." },
-    ]);
-    setDraft("");
-    setIsSending(true);
-
-    try {
-      const otherThreadContext = getOtherCoachThreadContext(THREAD_KEY);
-      const response = await apiCoachChat({
-        persona: "PinCoach",
-        message: `We are in Tilt Lab. Skill level: ${skillLevel}. Current lesson: Controlled Nudging. User handedness: ${handedness || "not set"}. Game: ${gameName.trim() || "not selected"}. User asks: ${trimmed}${otherThreadContext ? `
-
-Other room coach context:
-${otherThreadContext}` : ""}`,
-        machine_name: gameName.trim() || null,
-        include_location: false,
-        recent_messages: [...messages, userMessage]
-          .filter((entry) => entry.sender === "You" || entry.sender === "FlipCoach")
-          .slice(-6)
-          .map((entry) => ({
-            speaker: entry.sender,
-            text: entry.text,
-          })),
-      });
-
-      setMessages((current) =>
-        current.map((entry) =>
-          entry.id === pendingId
-            ? {
-                ...entry,
-                text: response.reply,
-                time: "Just now",
-              }
-            : entry
-        )
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Coach reply failed.";
-      setMessages((current) =>
-        current.map((entry) =>
-          entry.id === pendingId
-            ? {
-                ...entry,
-                text: message,
-                time: "Error",
-              }
-            : entry
-        )
-      );
-    } finally {
-      setIsSending(false);
-    }
-  }
-
-  function handleSend() {
-    const trimmed = draft.trim();
-    if (!trimmed) {
-      return;
-    }
-
-    sendMessage(trimmed);
-  }
-
   return (
     <RoomShell
       title="Tilt Lab"
@@ -569,29 +401,19 @@ ${otherThreadContext}` : ""}`,
       navIconClassName={styles.navIcon}
     >
 
-        {!isChatOpen ? (
-          <div className={styles.floatingCoachLayer}>
-            <button type="button" className={styles.floatingCoachButton} aria-label="Open FlipCoach chat" onClick={() => setIsChatOpen(true)}>
-              <div className={styles.floatingCoachAvatar}>
-                <Image src="/tilt-lab/flipcoach-avatar.png" alt="FlipCoach avatar" fill sizes="58px" style={{ objectFit: "contain", objectPosition: "center" }} />
-              </div>
-            </button>
-          </div>
-        ) : null}
-
         <main className={styles.content}>
           <section className={styles.heroCard}>
             <div className={styles.heroArt}>
-              <Image src="/tilt-lab/flipcoach-hero.png" alt="FlipCoach" fill sizes="120px" style={{ objectFit: "contain", objectPosition: "left top" }} />
+              <Image src="/tilt-lab/flipcoach-hero.png" alt="Tilt Lab" fill sizes="120px" style={{ objectFit: "contain", objectPosition: "left top" }} />
             </div>
 
             <div className={styles.heroContent}>
-              <div className={styles.heroTitle}>FlipCoach</div>
-              <div className={styles.heroSubtitle}>AI Coach</div>
-              <div className={styles.heroMessage}>Master tilt control. Improve consistency. Win more games.</div>
+              <div className={styles.heroTitle}>Tilt Lab</div>
+              <div className={styles.heroSubtitle}>Control Training</div>
+              <div className={styles.heroMessage}>Master tilt control, improve consistency, and rehearse legal nudging with live motion feedback.</div>
             </div>
 
-            <div className={styles.heroBubble}>{handedness ? `Welcome back. ${formatHandedness(handedness)} profile loaded for skill-building.` : "Before skill-building, FlipCoach needs your handedness."}</div>
+            <div className={styles.heroBubble}>{handedness ? `Welcome back. ${formatHandedness(handedness)} profile loaded for training.` : "Set your handedness before training so the motion cues stay consistent."}</div>
             <div className={styles.lessonRow}>
               <span className={styles.lessonText}>Current Lesson: Controlled Nudging</span>
               <span className={styles.lessonPercent}>{progressPercent}% Complete</span>
@@ -817,107 +639,6 @@ ${otherThreadContext}` : ""}`,
             <span className={styles.startSubtitle}>Continue Lesson {nextLessonNumber} or Start a New Lesson</span>
           </button>
         </div>
-
-        {!handedness ? (
-          <div className={styles.chatOverlay}>
-            <div className={styles.chatBackdrop} />
-            <div className={styles.chatPanel}>
-              <div className={styles.chatCoachRow}>
-                <div className={styles.chatCoachAvatar}>
-                  <Image src="/tilt-lab/flipcoach-avatar.png" alt="FlipCoach avatar" fill sizes="56px" style={{ objectFit: "contain", objectPosition: "center" }} />
-                </div>
-                <div className={styles.chatCoachMeta}>
-                  <div className={styles.chatCoachName}>FlipCoach</div>
-                  <div className={styles.chatCoachRole}>AI Coach</div>
-                </div>
-              </div>
-
-              <div className={styles.chatThread}>
-                <div className={styles.chatMessageWrap}>
-                  <div className={styles.chatBubble}>Before we build your tilt plan, are you left-handed or right-handed?</div>
-                  <div className={styles.chatTime}>Just now</div>
-                </div>
-              </div>
-
-              <div className={styles.handednessPromptActions}>
-                {HANDEDNESS_PROMPTS.map((option) => (
-                  <button key={option.value} type="button" className={styles.handednessPromptButton} onClick={() => applyHandedness(option.value)} disabled={isSending}>
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        ) : null}
-
-        {isChatOpen ? (
-          <div className={styles.chatOverlay}>
-            <div className={styles.chatBackdrop} onClick={() => setIsChatOpen(false)} />
-            <div className={styles.chatPanel}>
-              <div className={styles.chatHeader}>
-                <button type="button" className={styles.chatBackButton} aria-label="Close chat" onClick={() => setIsChatOpen(false)}>
-                  &#8249;
-                </button>
-                <div className={styles.chatHeaderTitle}>FlipCoach</div>
-                <div className={styles.chatHeaderAvatar}>
-                  <Image src="/tilt-lab/flipcoach-avatar.png" alt="FlipCoach avatar" fill sizes="52px" style={{ objectFit: "contain", objectPosition: "center" }} />
-                </div>
-              </div>
-
-              <div className={styles.chatCoachRow}>
-                <div className={styles.chatCoachAvatar}>
-                  <Image src="/tilt-lab/flipcoach-avatar.png" alt="FlipCoach avatar" fill sizes="56px" style={{ objectFit: "contain", objectPosition: "center" }} />
-                </div>
-                <div className={styles.chatCoachMeta}>
-                  <div className={styles.chatCoachName}>FlipCoach</div>
-                  <div className={styles.chatCoachRole}>AI Coach</div>
-                </div>
-                <button type="button" className={styles.chatCloseButton} aria-label="Close chat" onClick={() => setIsChatOpen(false)}>
-                  ×
-                </button>
-              </div>
-
-              <div className={styles.chatThread} ref={chatThreadRef}>
-                {messages.length ? messages.map((message) => (
-                  <div key={message.id} className={`${styles.chatMessageWrap} ${message.sender === "You" ? styles.chatMessageWrapUser : ""}`}>
-                    <div className={`${styles.chatBubble} ${message.sender === "You" ? styles.chatBubbleUser : ""}`}>{message.text}</div>
-                    <div className={styles.chatTime}>{message.time}</div>
-                  </div>
-                )) : <div className={styles.chatEmpty}>Ask why you tilted, what drill to do next, or how to steady your nudges.</div>}
-              </div>
-
-              <div className={styles.chatReplies}>
-                {!handedness ? HANDEDNESS_PROMPTS.map((option) => (
-                  <button key={option.value} type="button" className={styles.chatReplyChip} onClick={() => applyHandedness(option.value)} disabled={isSending}>
-                    {option.label}
-                  </button>
-                )) : null}
-                {QUICK_REPLIES.map((reply) => (
-                  <button key={reply} type="button" className={styles.chatReplyChip} onClick={() => sendMessage(reply)} disabled={isSending}>
-                    {reply}
-                  </button>
-                ))}
-              </div>
-
-              <div className={styles.chatComposer}>
-                <button type="button" className={styles.chatEmojiButton} aria-label="Emoji">?</button>
-                <input
-                  type="text"
-                  value={draft}
-                  onChange={(event) => setDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      handleSend();
-                    }
-                  }}
-                  placeholder="Type a message..."
-                />
-                <button type="button" className={styles.chatSendButton} aria-label="Send" onClick={handleSend}>?</button>
-              </div>
-            </div>
-          </div>
-        ) : null}
     </RoomShell>
   );
 }

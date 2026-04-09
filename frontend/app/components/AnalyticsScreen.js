@@ -3,7 +3,6 @@
 import { useRouter } from "next/navigation";
 import { navigateBackWithinApp } from "../../lib/navigation";
 import { useEffect, useMemo, useState } from "react";
-import RoomCoachOverlay from "./RoomCoachOverlay";
 
 const ANALYTICS_DATA = {
   Today: {
@@ -999,15 +998,6 @@ export default function AnalyticsScreen() {
     };
   }, [currentMachineName]);
 
-  const coachPrompts = useMemo(
-    () => [
-      `What should I focus on next for ${currentMachineStats.name}?`,
-      `Why does ${currentMachineStats.name} keep exposing ${currentMachineStats.focus.toLowerCase()}?`,
-      `Give me a one-game plan for ${currentMachineStats.name}.`,
-    ],
-    [currentMachineStats]
-  );
-
 
   function handleTrendChange(option) {
     const nextData = ANALYTICS_DATA[option];
@@ -1116,29 +1106,6 @@ export default function AnalyticsScreen() {
           <div className="spacer" />
         </header>
 
-
-
-        <RoomCoachOverlay
-          threadKey="analytics"
-          roomLabel="Analytics"
-          coachRole="Analytics Coach"
-          prompts={coachPrompts}
-          placeholder={`Ask FlipperCoach about ${currentMachineStats.name}...`}
-          emptyCopy={`Ask what to focus on next for ${currentMachineStats.name}, why ${currentMachineStats.focus.toLowerCase()} keeps showing up, or what your next one-game plan should be.`}
-          requestBuilder={({ draft, recentMessages, persona }) => ({
-            persona,
-            message: `We are in Analytics. Trend view: ${trendView}. Current machine: ${currentMachineStats.name}. Main focus: ${currentMachineStats.focus}. User asks: ${draft}`,
-            machine_name: currentMachineStats.name,
-            include_location: false,
-            metadata: {
-              room: "Analytics",
-              trend_view: trendView,
-              machine_name: currentMachineStats.name,
-              top_issue: currentMachineStats.focus,
-            },
-            recent_messages: recentMessages,
-          })}
-        />
 
         <main className="content">
           <section className="heroCard">
