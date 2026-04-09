@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import CalibrationCalculatorPanel from "./CalibrationCalculatorPanel";
 import CalibrationScreen from "./CalibrationScreen";
 import OverlayCalibrationScreen from "./OverlayCalibrationScreen";
 import SignatureRevealCalibrationScreen from "./SignatureRevealCalibrationScreen";
+import { exportInkSyncWorkspace, importInkSyncWorkspace } from "../../lib/userPreferences";
 
 const VIEWS = [
   {
@@ -29,8 +31,42 @@ const VIEWS = [
 ];
 
 export default function UnifiedCalibrationScreen() {
+  const router = useRouter();
+  const importInputRef = useRef(null);
   const [activeView, setActiveView] = useState("camera");
+  const [workspaceStatus, setWorkspaceStatus] = useState("Export the current calibration workspace or import a saved bundle.");
   const currentView = VIEWS.find((view) => view.id === activeView) ?? VIEWS[0];
+
+  function exportWorkspace() {
+    const bundle = exportInkSyncWorkspace();
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: "application/json" });
+    const url = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    anchor.href = url;
+    anchor.download = `inksync-workspace-${stamp}.json`;
+    anchor.click();
+    window.URL.revokeObjectURL(url);
+    setWorkspaceStatus("Workspace bundle exported.");
+  }
+
+  async function importWorkspace(event) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    try {
+      const raw = await file.text();
+      const parsed = JSON.parse(raw);
+      const ok = importInkSyncWorkspace(parsed);
+      setWorkspaceStatus(ok ? "Workspace bundle imported." : "Workspace bundle was invalid.");
+    } catch {
+      setWorkspaceStatus("Workspace bundle could not be read.");
+    } finally {
+      event.target.value = "";
+    }
+  }
 
   return (
     <div className="workspaceShell">
@@ -79,6 +115,30 @@ export default function UnifiedCalibrationScreen() {
                 <li>Overlay: align keyframes, apply tracking, and correct size drift.</li>
                 <li>Reveal: tune the signature layer against the tracked guide.</li>
               </ul>
+            </section>
+
+            <section className="workflowCard">
+              <div className="eyebrow">Workflow</div>
+              <h2>Move between setup and performance</h2>
+              <p>{workspaceStatus}</p>
+              <div className="workflowActions">
+                <button type="button" className="workflowButton workflowButtonPrimary" onClick={() => router.push("/controller")}>
+                  Open Controller
+                </button>
+                <button type="button" className="workflowButton" onClick={exportWorkspace}>
+                  Export Workspace
+                </button>
+                <button type="button" className="workflowButton" onClick={() => importInputRef.current?.click()}>
+                  Import Workspace
+                </button>
+              </div>
+              <input
+                ref={importInputRef}
+                type="file"
+                accept="application/json"
+                className="hiddenInput"
+                onChange={importWorkspace}
+              />
             </section>
 
             <CalibrationCalculatorPanel />
@@ -261,6 +321,30 @@ export default function UnifiedCalibrationScreen() {
           color: #475467;
           font-size: 14px;
           line-height: 1.45;
+        }
+
+        .workflowActions {
+          display: grid;
+          gap: 10px;
+        }
+
+        .workflowButton {
+          min-height: 42px;
+          border: 0;
+          border-radius: 999px;
+          padding: 0 16px;
+          background: rgba(16, 35, 59, 0.09);
+          color: #10233b;
+          font-weight: 800;
+        }
+
+        .workflowButtonPrimary {
+          background: #10233b;
+          color: #fff;
+        }
+
+        .hiddenInput {
+          display: none;
         }
 
         .workspaceStage {

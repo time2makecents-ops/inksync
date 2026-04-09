@@ -5,6 +5,7 @@ export const CALIBRATION_SNAPSHOT_STORAGE_KEY = "inksync-calibration-snapshot";
 export const OVERLAY_CALIBRATION_STORAGE_KEY = "inksync-overlay-calibration";
 export const SIGNATURE_REVEAL_CALIBRATION_STORAGE_KEY = "inksync-signature-reveal-calibration";
 export const CALIBRATION_CALCULATOR_STORAGE_KEY = "inksync-calibration-calculator";
+export const LIVE_TRACKING_STORAGE_KEY = "inksync-live-tracking";
 export const INKSYNC_DATA_MODEL_VERSION = 1;
 const STORAGE_EVENT_PREFIX = "inksync:storage:";
 
@@ -138,6 +139,15 @@ export function buildCalibrationSnapshot(value) {
           summary: "",
           notes: [],
         },
+  };
+}
+
+export function buildLiveTrackingSnapshot(value) {
+  return {
+    schemaVersion: INKSYNC_DATA_MODEL_VERSION,
+    updatedAt: typeof value?.updatedAt === "string" ? value.updatedAt : new Date().toISOString(),
+    metrics: normalizeCalibrationMetrics(value?.metrics),
+    tracking: normalizeTrackingState(value?.tracking),
   };
 }
 
@@ -345,6 +355,15 @@ export function setStoredCalibrationSnapshot(value) {
   writeStoredJson(CALIBRATION_SNAPSHOT_STORAGE_KEY, value ? buildCalibrationSnapshot(value) : null);
 }
 
+export function getStoredLiveTrackingSnapshot() {
+  const parsed = readStoredJson(LIVE_TRACKING_STORAGE_KEY);
+  return parsed ? buildLiveTrackingSnapshot(parsed) : null;
+}
+
+export function setStoredLiveTrackingSnapshot(value) {
+  writeStoredJson(LIVE_TRACKING_STORAGE_KEY, value ? buildLiveTrackingSnapshot(value) : null);
+}
+
 export function getStoredOverlayCalibration() {
   const parsed = readStoredJson(OVERLAY_CALIBRATION_STORAGE_KEY);
   return parsed ? buildOverlayCalibrationSnapshot(parsed) : null;
@@ -376,4 +395,29 @@ export function setStoredCalibrationCalculator(value) {
     CALIBRATION_CALCULATOR_STORAGE_KEY,
     value ? normalizeCalculatorState(value) : null
   );
+}
+
+export function exportInkSyncWorkspace() {
+  return {
+    schemaVersion: INKSYNC_DATA_MODEL_VERSION,
+    exportedAt: new Date().toISOString(),
+    calibrationSnapshot: getStoredCalibrationSnapshot(),
+    liveTracking: getStoredLiveTrackingSnapshot(),
+    overlayCalibration: getStoredOverlayCalibration(),
+    signatureRevealCalibration: getStoredSignatureRevealCalibration(),
+    calculator: getStoredCalibrationCalculator(),
+  };
+}
+
+export function importInkSyncWorkspace(bundle) {
+  if (!bundle || typeof bundle !== "object") {
+    return false;
+  }
+
+  setStoredCalibrationSnapshot(bundle.calibrationSnapshot ?? null);
+  setStoredLiveTrackingSnapshot(bundle.liveTracking ?? null);
+  setStoredOverlayCalibration(bundle.overlayCalibration ?? null);
+  setStoredSignatureRevealCalibration(bundle.signatureRevealCalibration ?? null);
+  setStoredCalibrationCalculator(bundle.calculator ?? null);
+  return true;
 }

@@ -6,6 +6,7 @@ import {
   buildCalibrationSnapshot,
   getStoredCalibrationSnapshot,
   setStoredCalibrationSnapshot,
+  setStoredLiveTrackingSnapshot,
 } from "../../lib/userPreferences";
 
 const TARGET_BOX = {
@@ -277,6 +278,7 @@ export default function CalibrationScreen() {
   const streamRef = useRef(null);
   const previousFrameRef = useRef(null);
   const trackingLockRef = useRef(null);
+  const liveTrackingWriteRef = useRef(0);
 
   const [cameraStatus, setCameraStatus] = useState("Camera is off.");
   const [permissionError, setPermissionError] = useState("");
@@ -321,6 +323,8 @@ export default function CalibrationScreen() {
 
     previousFrameRef.current = null;
     trackingLockRef.current = null;
+    liveTrackingWriteRef.current = 0;
+    setStoredLiveTrackingSnapshot(null);
     setIsRunning(false);
     setCountdown(0);
     setTrackingLocked(false);
@@ -576,6 +580,36 @@ export default function CalibrationScreen() {
 
     setMetrics(nextMetrics);
     setGuidance(summarizeGuidance(nextMetrics));
+
+    const now = Date.now();
+    if ((foundCard || trackingLocked) && now - liveTrackingWriteRef.current >= 350) {
+      liveTrackingWriteRef.current = now;
+      setStoredLiveTrackingSnapshot({
+        updatedAt: new Date(now).toISOString(),
+        metrics: {
+          brightness,
+          sharpness,
+          motion,
+          areaRatio,
+          aspectRatio,
+          centerX,
+          centerY,
+          boxWidthRatio,
+          boxHeightRatio,
+          rotation,
+          confidence: confidence * 100,
+        },
+        tracking: trackingLocked && trackingLockRef.current
+          ? {
+              locked: true,
+              reference: trackingLockRef.current,
+            }
+          : {
+              locked: false,
+              reference: null,
+            },
+      });
+    }
   }
 
   function saveSnapshot() {

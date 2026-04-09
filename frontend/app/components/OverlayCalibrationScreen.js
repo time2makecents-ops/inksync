@@ -7,8 +7,10 @@ import {
   buildOverlayCalibrationSnapshot,
   buildSignatureRevealCalibrationSnapshot,
   getStoredCalibrationSnapshot,
+  getStoredLiveTrackingSnapshot,
   getStoredOverlayCalibration,
   getStoredSignatureRevealCalibration,
+  LIVE_TRACKING_STORAGE_KEY,
   normalizeCardTransform,
   OVERLAY_CALIBRATION_STORAGE_KEY,
   setStoredOverlayCalibration,
@@ -121,6 +123,26 @@ function interpolateOverlay(startOverlay, endOverlay, progress) {
   });
 }
 
+function blendOverlayTowards(sourceOverlay, targetOverlay, strength) {
+  return normalizeOverlay({
+    x: interpolateValue(sourceOverlay.x, targetOverlay.x, strength),
+    y: interpolateValue(sourceOverlay.y, targetOverlay.y, strength),
+    width: interpolateValue(sourceOverlay.width, targetOverlay.width, strength),
+    height: interpolateValue(sourceOverlay.height, targetOverlay.height, strength),
+    rotation: interpolateValue(sourceOverlay.rotation, targetOverlay.rotation, strength),
+  });
+}
+
+function hasMeaningfulOverlayDelta(sourceOverlay, targetOverlay) {
+  return (
+    Math.abs(sourceOverlay.x - targetOverlay.x) > 0.2
+    || Math.abs(sourceOverlay.y - targetOverlay.y) > 0.2
+    || Math.abs(sourceOverlay.width - targetOverlay.width) > 0.2
+    || Math.abs(sourceOverlay.height - targetOverlay.height) > 0.2
+    || Math.abs(sourceOverlay.rotation - targetOverlay.rotation) > 0.1
+  );
+}
+
 export default function OverlayCalibrationScreen({ mode = "overlay" }) {
   const stageRef = useRef(null);
   const dragStateRef = useRef(null);
@@ -138,6 +160,9 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
   const [revealSpeed, setRevealSpeed] = useState(0.45);
   const [isRevealRunning, setIsRevealRunning] = useState(false);
   const [trackingSnapshot, setTrackingSnapshot] = useState(null);
+  const [liveTrackingSnapshot, setLiveTrackingSnapshot] = useState(null);
+  const [trackingAssistEnabled, setTrackingAssistEnabled] = useState(false);
+  const [trackingAssistStrength, setTrackingAssistStrength] = useState(0.28);
   const isRevealMode = mode === "reveal";
 
   useEffect(() => {
@@ -169,6 +194,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
         }
 
         setTrackingSnapshot(getStoredCalibrationSnapshot());
+        setLiveTrackingSnapshot(getStoredLiveTrackingSnapshot());
 
         try {
           const backupResponse = await fetch(
@@ -316,6 +342,16 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
   }, [isRevealMode]);
 
   useEffect(() => {
+    if (isRevealMode) {
+      return undefined;
+    }
+
+    return subscribeToStoredJson(LIVE_TRACKING_STORAGE_KEY, (value) => {
+      setLiveTrackingSnapshot(value);
+    });
+  }, [isRevealMode]);
+
+  useEffect(() => {
     if (!isRevealMode || !isRevealRunning) {
       return undefined;
     }
@@ -412,6 +448,13 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
     },
     [overlay, sourceSize, trackingSnapshot]
   );
+  const liveTrackedOverlay = useMemo(
+    () => {
+      const tracked = buildTrackedCardTransformFromSnapshot(liveTrackingSnapshot, sourceSize, overlay);
+      return tracked ? normalizeOverlay(tracked) : null;
+    },
+    [liveTrackingSnapshot, overlay, sourceSize]
+  );
   const cardGuide = useMemo(() => {
     if (!isRevealMode) {
       return null;
@@ -428,6 +471,26 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
   const signatureLayer = isRevealMode
     ? overlay
     : null;
+
+  useEffect(() => {
+    if (isRevealMode || !trackingAssistEnabled || !liveTrackedOverlay) {
+      return;
+    }
+
+    setOverlaysByFrame((current) => {
+      const existing = normalizeOverlay(current[frameId] ?? DEFAULT_OVERLAY);
+      const blended = blendOverlayTowards(existing, liveTrackedOverlay, trackingAssistStrength);
+      if (!hasMeaningfulOverlayDelta(existing, blended)) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [frameId]: blended,
+      };
+    });
+    setKeyframeIds((current) => (current.includes(frameId) ? current : [...current, frameId]));
+  }, [frameId, isRevealMode, liveTrackedOverlay, trackingAssistEnabled, trackingAssistStrength]);
 
   function updateOverlay(updater) {
     setOverlaysByFrame((current) => {
@@ -683,6 +746,15 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
 
     updateOverlay(trackedOverlay);
     setStatus("Applied the tracked card reference to the current overlay frame.");
+  }
+
+  function applyLiveTrackingAssist() {
+    if (!liveTrackedOverlay || isRevealMode) {
+      return;
+    }
+
+    updateOverlay(liveTrackedOverlay);
+    setStatus("Applied the live tracked card transform to the current overlay frame.");
   }
 
   function handlePointerDown(event) {
@@ -1155,6 +1227,44 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
               </button>
             </div>
           ) : null}
+          {!isRevealMode ? (
+            <div className="trackingPanel">
+              <div className="trackingPanelHeader">
+                <strong>Live Tracking Assist</strong>
+                <span>{liveTrackedOverlay ? "Live feed" : "Waiting"}</span>
+              </div>
+              <p className="note">
+                {liveTrackedOverlay
+                  ? "Use the live tracked card to keep the active overlay frame close to the current card transform while you fine-tune."
+                  : "Start the camera on the tracking stage to stream a live tracked card transform into overlay calibration."}
+              </p>
+              <label className="assistToggle">
+                <input
+                  type="checkbox"
+                  checked={trackingAssistEnabled}
+                  onChange={(event) => setTrackingAssistEnabled(event.target.checked)}
+                  disabled={!liveTrackedOverlay}
+                />
+                <span>Keep current frame aligned to live tracking</span>
+              </label>
+              <label className="assistStrength">
+                <span>Assist strength</span>
+                <input
+                  type="range"
+                  min="0.05"
+                  max="1"
+                  step="0.05"
+                  value={trackingAssistStrength}
+                  onChange={(event) => setTrackingAssistStrength(Number(event.target.value))}
+                  disabled={!liveTrackedOverlay}
+                />
+                <strong>{Math.round(trackingAssistStrength * 100)}%</strong>
+              </label>
+              <button type="button" className="secondaryButton" onClick={applyLiveTrackingAssist} disabled={!liveTrackedOverlay}>
+                Apply Live Tracking
+              </button>
+            </div>
+          ) : null}
 
           <div className="readout">
             <div><strong>Frame:</strong> {currentFrame?.label ?? "None"}</div>
@@ -1166,6 +1276,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
             <div><strong>Step:</strong> {stepSize}px</div>
             <div><strong>Keyframe:</strong> {isKeyframe ? "Yes" : "Interpolated"}</div>
             <div><strong>Tracked:</strong> {trackedOverlay ? `${trackedOverlay.width.toFixed(1)} x ${trackedOverlay.height.toFixed(1)} px` : "None"}</div>
+            <div><strong>Live assist:</strong> {liveTrackedOverlay ? `${liveTrackedOverlay.width.toFixed(1)} x ${liveTrackedOverlay.height.toFixed(1)} px` : "None"}</div>
           </div>
 
           <div className="note">
@@ -1593,6 +1704,24 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           justify-content: space-between;
           gap: 12px;
           font-size: 14px;
+          color: #1d4ed8;
+        }
+
+        .assistToggle,
+        .assistStrength {
+          display: grid;
+          gap: 8px;
+          font-size: 13px;
+          color: #334155;
+          font-weight: 600;
+        }
+
+        .assistToggle {
+          grid-template-columns: auto 1fr;
+          align-items: center;
+        }
+
+        .assistStrength strong {
           color: #1d4ed8;
         }
 

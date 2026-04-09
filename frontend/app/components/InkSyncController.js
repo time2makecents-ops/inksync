@@ -1,6 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+
+import {
+  CALIBRATION_SNAPSHOT_STORAGE_KEY,
+  OVERLAY_CALIBRATION_STORAGE_KEY,
+  SIGNATURE_REVEAL_CALIBRATION_STORAGE_KEY,
+  getStoredCalibrationSnapshot,
+  getStoredOverlayCalibration,
+  getStoredSignatureRevealCalibration,
+  subscribeToStoredJson,
+} from "../../lib/userPreferences";
 
 const DEFAULT_SECRET_CODE = "5317";
 
@@ -110,7 +121,7 @@ function CalculatorLockScreen({ displayValue, onDigit, onClear, onBackspace }) {
     ["7", "8", "9"],
     ["4", "5", "6"],
     ["1", "2", "3"],
-    ["C", "0", "⌫"],
+    ["C", "0", "DEL"],
   ];
 
   return (
@@ -140,7 +151,7 @@ function CalculatorLockScreen({ displayValue, onDigit, onClear, onBackspace }) {
                 );
               }
 
-              if (label === "⌫") {
+              if (label === "DEL") {
                 return (
                   <CalculatorButton
                     key={label}
@@ -537,7 +548,93 @@ function PerformanceHUD({ pipelineState, precheckResult, countdownRemaining, isA
   );
 }
 
+function WorkflowStatus({ calibrationSnapshot, overlayCalibration, revealCalibration, onOpenCalibration }) {
+  const calibrationReady = Boolean(calibrationSnapshot?.savedAt);
+  const overlayReady = Boolean(overlayCalibration?.activeFrame && Object.keys(overlayCalibration?.frames ?? {}).length);
+  const revealReady = Boolean(revealCalibration?.activeFrame && Object.keys(revealCalibration?.frames ?? {}).length);
+
+  return (
+    <section className="card">
+      <div className="cardHeader">
+        <div>
+          <div className="eyebrow">Workflow</div>
+          <h3>Calibration readiness</h3>
+        </div>
+      </div>
+
+      <div className="chips">
+        <StatusChip label="Track" value={calibrationReady ? "READY" : "MISSING"} tone={calibrationReady ? "success" : "warn"} />
+        <StatusChip label="Overlay" value={overlayReady ? "READY" : "MISSING"} tone={overlayReady ? "success" : "warn"} />
+        <StatusChip label="Reveal" value={revealReady ? "READY" : "MISSING"} tone={revealReady ? "success" : "warn"} />
+      </div>
+
+      <div className="readinessCopy">
+        {calibrationReady
+          ? `Tracking snapshot saved ${new Date(calibrationSnapshot.savedAt).toLocaleString()}.`
+          : "Open calibration and save a tracking snapshot before performance."}
+      </div>
+
+      <button type="button" className="navButton" onClick={onOpenCalibration}>
+        Open Calibration Workspace
+      </button>
+
+      <style jsx>{`
+        .card {
+          border-radius: 18px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: linear-gradient(180deg, rgba(21, 25, 33, 0.94), rgba(11, 14, 19, 0.98));
+          padding: 16px;
+          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+        }
+
+        .cardHeader {
+          margin-bottom: 14px;
+        }
+
+        .eyebrow {
+          color: #89a4d1;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        h3 {
+          margin: 6px 0 0;
+          font-size: 20px;
+          color: #f3f6fc;
+        }
+
+        .chips {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          margin-bottom: 12px;
+        }
+
+        .readinessCopy {
+          color: #c7d2e7;
+          font-size: 13px;
+          line-height: 1.45;
+          margin-bottom: 12px;
+        }
+
+        .navButton {
+          width: 100%;
+          min-height: 42px;
+          border: 0;
+          border-radius: 999px;
+          background: #f3f6fc;
+          color: #0f172a;
+          font-weight: 800;
+        }
+      `}</style>
+    </section>
+  );
+}
+
 export default function InkSyncController() {
+  const router = useRouter();
   const [isUnlocked, setIsUnlocked] = useState(false);
   const [enteredCode, setEnteredCode] = useState("");
   const [debugVisible, setDebugVisible] = useState(true);
@@ -554,10 +651,29 @@ export default function InkSyncController() {
   const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
   const [extractionConfidence] = useState(0.82);
   const [notes, setNotes] = useState("");
+  const [calibrationSnapshot, setCalibrationSnapshot] = useState(null);
+  const [overlayCalibration, setOverlayCalibration] = useState(null);
+  const [revealCalibration, setRevealCalibration] = useState(null);
 
   useEffect(() => {
     setPipelineState(isUnlocked ? "idle" : "locked");
   }, [isUnlocked]);
+
+  useEffect(() => {
+    setCalibrationSnapshot(getStoredCalibrationSnapshot());
+    setOverlayCalibration(getStoredOverlayCalibration());
+    setRevealCalibration(getStoredSignatureRevealCalibration());
+
+    const unsubscribeCalibration = subscribeToStoredJson(CALIBRATION_SNAPSHOT_STORAGE_KEY, setCalibrationSnapshot);
+    const unsubscribeOverlay = subscribeToStoredJson(OVERLAY_CALIBRATION_STORAGE_KEY, setOverlayCalibration);
+    const unsubscribeReveal = subscribeToStoredJson(SIGNATURE_REVEAL_CALIBRATION_STORAGE_KEY, setRevealCalibration);
+
+    return () => {
+      unsubscribeCalibration();
+      unsubscribeOverlay();
+      unsubscribeReveal();
+    };
+  }, []);
 
   useEffect(() => {
     if (enteredCode === DEFAULT_SECRET_CODE) {
@@ -611,7 +727,7 @@ export default function InkSyncController() {
     return () => window.clearTimeout(timer);
   }, [pipelineState]);
 
-  const availableStates = useMemo(() => PIPELINE_STATES.join(" → "), []);
+  const availableStates = useMemo(() => PIPELINE_STATES.join(" -> "), []);
 
   function appendDigit(digit) {
     if (isUnlocked) return;
@@ -710,6 +826,13 @@ export default function InkSyncController() {
             isArmed={isArmed}
           />
 
+          <WorkflowStatus
+            calibrationSnapshot={calibrationSnapshot}
+            overlayCalibration={overlayCalibration}
+            revealCalibration={revealCalibration}
+            onOpenCalibration={() => router.push("/calibration")}
+          />
+
           <section className="card">
             <div className="cardHeader">
               <div>
@@ -751,6 +874,13 @@ export default function InkSyncController() {
                 <span className="actionTitle">Reset Run</span>
                 <span className="actionCopy">
                   Clear state and re-stage the effect.
+                </span>
+              </button>
+
+              <button type="button" className="actionButton" onClick={() => router.push("/calibration")}>
+                <span className="actionTitle">Return To Calibration</span>
+                <span className="actionCopy">
+                  Move back into the setup workspace to adjust tracking, overlay, or reveal alignment.
                 </span>
               </button>
             </div>
