@@ -16,42 +16,36 @@ High
 Pending
 
 ## Goal
-Redesign calibration UI to be faster, simpler, and more user friendly
+Redesign the calibration workflow so the active controls are visible, dense, and usable on both desktop and mobile without long scrolling.
 
 ## Requirements
-- Single calibration page
-- Grid toggle
-- Draggable overlay box
-- Resize handles (corners + sides)
-- Rotate handle
-- Tilt / perspective control
-- Zoom controls
-- Numeric input fields
-- Reset controls
+- reduce vertical sprawl in the calibration flow
+- keep the live preview and primary controls visible together
+- expose overlay, tracking, and reset actions clearly
+- preserve precision controls for advanced adjustments
+- maintain a distinct operator-first InkSync visual style
+
+## Constraints
+- do not merge this task with the data-model or tracking-engine logic changes
+- preserve the existing calibration functionality while redesigning the layout
+- optimize for phone ergonomics first, then desktop expansion
 
 ## Target Files
 - frontend/app/components/CalibrationScreen.js
 - frontend/app/components/OverlayCalibrationScreen.js
 - frontend/app/components/SignatureRevealCalibrationScreen.js
-- frontend/app/components/AccelerometerTest.js
-- frontend/app/components/AccountScreen.js
-- frontend/app/components/AnalyticsScreen.js
-- frontend/app/components/ClassroomCameraCard.js
-- frontend/app/components/ClassroomLandingScreen.js
 - frontend/app/components/ClassroomScreen.js
-- frontend/app/components/FakeYouTubePage.js
 
 ## Execution Plan
-- Read the task file and current target files.
-- Confirm ownership, scope, and constraints before editing.
-- Produce a human review packet before code changes.
+- Confirm task scope against the goal, requirements, and constraints.
+- Inspect the target files and narrow to the minimum implementation surface.
+- Execute only the current slice unless the task file explicitly widens scope.
+- Validate against the task checklist before moving the task forward.
 
 ## Validation Checklist
-- - Controls visible without scrolling
-- - Overlay easy to adjust
-- - Grid toggle working
-- - Handles working
-- Status: Pending
+- key calibration actions remain visible without excessive scrolling on mobile
+- the redesign still exposes the required overlay controls
+- the updated layout remains coherent with the rest of the InkSync UI
 
 ## Notes
-None
+- This task should start after the data model and tracking surfaces are stable enough to design around.

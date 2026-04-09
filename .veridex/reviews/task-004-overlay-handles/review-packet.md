@@ -13,10 +13,20 @@ None
 Medium
 
 ## Status
-In Progress
+Review
 
 ## Goal
-Improve overlay control with interactive handles
+Improve overlay control with interactive handles.
+
+## Current Slice
+First pass shipped:
+
+- four corner resize handles
+- existing side handles retained
+- rotate handle retained
+- drag-to-move retained
+
+Perspective and tilt warping remain deferred.
 
 ## Requirements
 - Resize handles (4 corners)
@@ -30,15 +40,16 @@ Improve overlay control with interactive handles
 - frontend/app/components/OverlayCalibrationScreen.js
 
 ## Execution Plan
-- Verify the current handle model in overlay calibration.
-- Add missing corner resize handles without widening scope to perspective warping.
-- Keep existing move, side resize, and rotate interactions intact.
+- Confirm task scope against the goal, requirements, and constraints.
+- Inspect the target files and narrow to the minimum implementation surface.
+- Execute only the current slice unless the task file explicitly widens scope.
+- Validate against the task checklist before moving the task forward.
 
 ## Validation Checklist
-- Four corner handles are visible and draggable.
-- Four side handles remain functional.
-- Rotate handle remains functional.
-- Drag-to-move still works with mouse and touch.
+- four corner handles are visible and draggable
+- side handles remain functional
+- rotate handle remains functional
+- drag-to-move still works with mouse and touch
 
 ## Notes
-Perspective/tilt adjustment remains a later pass after the full handle model is stabilized.
+- Move this task to Complete only after perspective or tilt handling is either implemented or explicitly descoped.

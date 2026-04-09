@@ -1,26 +1,22 @@
 {
   "owner_defaults": {
     "UI Agent": [
-      "frontend/app/components/**/*.js",
-      "frontend/app/**/*.js",
-      "frontend/**/*.css"
+      "frontend/app/components/*Calibration*.js",
+      "frontend/app/components/ClassroomScreen.js"
     ],
     "Logic Agent": [
-      "frontend/lib/**/*.js",
-      "frontend/app/**/*.js",
-      "*.py"
+      "frontend/lib/userPreferences.js",
+      "frontend/lib/api.js"
     ],
     "Vision Agent": [
-      "*.py",
-      "frontend/app/components/**/*Calibration*.js",
-      "frontend/app/components/**/*Camera*.js",
-      "frontend/app/components/**/*Overlay*.js",
-      "frontend/lib/**/*.js"
+      "frontend/app/components/CalibrationScreen.js",
+      "frontend/app/components/OverlayCalibrationScreen.js",
+      "frontend/app/components/SignatureRevealCalibrationScreen.js"
     ],
     "Test Agent": [
       ".veridex/**/*.md",
       "scripts/**/*.py",
-      "frontend/**/*.js"
+      "frontend/app/components/*Calibration*.js"
     ]
   },
   "task_rules": [
@@ -29,71 +25,71 @@
       "targets": [
         "frontend/app/components/SignatureRevealCalibrationScreen.js",
         "frontend/app/components/OverlayCalibrationScreen.js",
-        "*.py"
+        "frontend/lib/userPreferences.js"
       ]
     },
     {
       "task_id": "task-002",
       "targets": [
-        "frontend/app/components/*Calibration*.js",
-        "frontend/app/components/ClassroomScreen.js",
-        "frontend/lib/**/*.js"
+        "frontend/app/components/CalibrationScreen.js",
+        "frontend/app/components/OverlayCalibrationScreen.js",
+        "frontend/app/components/SignatureRevealCalibrationScreen.js",
+        "frontend/lib/userPreferences.js"
       ]
     },
     {
       "task_id": "task-003",
       "targets": [
-        "frontend/lib/**/*.js",
-        "frontend/app/components/**/*Overlay*.js",
-        "*.py"
+        "frontend/app/components/OverlayCalibrationScreen.js",
+        "frontend/lib/userPreferences.js",
+        "frontend/lib/api.js"
       ]
     },
     {
       "task_id": "task-004",
       "targets": [
-        "frontend/app/components/**/*Overlay*.js",
-        "frontend/app/components/*Calibration*.js"
+        "frontend/app/components/OverlayCalibrationScreen.js"
       ]
     },
     {
       "task_id": "task-005",
       "targets": [
         "frontend/app/components/SignatureRevealCalibrationScreen.js",
-        "frontend/app/components/OverlayCalibrationScreen.js",
-        "*.py"
+        "frontend/app/components/OverlayCalibrationScreen.js"
       ]
     },
     {
       "task_id": "task-006",
       "targets": [
-        "frontend/app/components/**/*Camera*.js",
-        "frontend/app/components/**/*Calibration*.js",
-        "frontend/lib/**/*.js",
-        "*.py"
+        "frontend/app/components/CalibrationScreen.js",
+        "frontend/app/components/OverlayCalibrationScreen.js",
+        "frontend/lib/userPreferences.js"
       ]
     },
     {
       "task_id": "task-007",
       "targets": [
-        "frontend/app/components/*Calibration*.js",
-        "frontend/app/components/**/*.js",
-        "frontend/**/*.css"
+        "frontend/app/components/CalibrationScreen.js",
+        "frontend/app/components/OverlayCalibrationScreen.js",
+        "frontend/app/components/SignatureRevealCalibrationScreen.js",
+        "frontend/app/components/ClassroomScreen.js"
       ]
     },
     {
       "task_id": "task-008",
       "targets": [
-        "frontend/lib/**/*.js",
-        "*.py",
-        "frontend/app/components/*Calibration*.js"
+        "frontend/app/components/CalibrationScreen.js",
+        "frontend/app/components/OverlayCalibrationScreen.js",
+        "frontend/lib/userPreferences.js"
       ]
     },
     {
       "task_id": "task-009",
       "targets": [
-        "frontend/lib/**/*.js",
-        "frontend/app/components/**/*Overlay*.js",
-        "frontend/app/components/**/*Calibration*.js"
+        "frontend/lib/userPreferences.js",
+        "frontend/app/components/CalibrationScreen.js",
+        "frontend/app/components/OverlayCalibrationScreen.js",
+        "frontend/app/components/SignatureRevealCalibrationScreen.js"
       ]
     }
   ]

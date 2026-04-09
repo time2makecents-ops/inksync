@@ -1,17 +1,25 @@
-# Task 005 — Orientation Fix
+# Task 005 - Orientation Fix
 
+Status: Review
+
+Assigned By: Navigator
 Owner: Vision Agent
 Support: Logic Agent
 Priority: Critical
 
-Status: In Progress
-
-Assigned By: Navigator
-Assigned To: Vision Agent, Logic Agent
-
 ## Goal
 
-Fix overlay orientation mismatch
+Fix overlay orientation mismatch.
+
+## Current Slice
+
+First pass shipped:
+
+- unified intrinsic signature orientation logic between the overlay calibration screen and the signature reveal calibration screen
+
+Remaining follow-up:
+
+- verify that the same transform assumptions hold once tracking data starts driving the overlay
 
 ## Requirements
 
@@ -22,10 +30,9 @@ Fix overlay orientation mismatch
 
 ## Validation
 
-- Overlay matches card orientation
-- Signature remains aligned
+- overlay matches card orientation in the calibration flow
+- signature remains aligned in the reveal calibration flow
 
-## Status
+## Notes
 
-In Progress
-
+- This task should only return to In Progress if tracking integration exposes a new orientation mismatch.

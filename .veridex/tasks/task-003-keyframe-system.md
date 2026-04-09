@@ -1,43 +1,49 @@
-# Task 003 — Keyframe System
-
-Owner: Logic Agent
-Support: UI Agent
-Priority: High
+# Task 003 - Keyframe System
 
 Status: Pending
 
 Assigned By: Navigator
-Assigned To: Logic Agent, UI Agent, Vision Agent
+Owner: Logic Agent
+Support: UI Agent, Vision Agent
+Priority: High
 
 ## Goal
 
-Create flexible keyframe tracking system for overlay alignment
+Create a keyframe system that stores overlay transforms over time and supports interpolation between manual and automatic alignment points.
 
 ## Requirements
 
-- Auto keyframe generation
-- Manual keyframe placement
-- Tap screen to add keyframe
-- Pause video and select frame
-- Adjustable time gap between frames
-- Start tracking marker
-- End tracking marker
-- Frame drag/reposition support
-- Frame delete support
+- support manual keyframe creation and deletion
+- support start and end markers for tracked segments
+- define a keyframe shape that can hold card and signature transforms
+- interpolate smoothly between adjacent keyframes
+- allow later tasks to attach tracking confidence and timestamps
 
 ## UI Requirements
 
-- Timeline view
-- Play / Pause controls
-- Add keyframe button
-- Frame slider
+- timeline view
+- play and pause controls
+- add keyframe action
+- frame scrubber or slider
 
 ## Logic Requirements
 
-- Frame interpolation
-- Transform inheritance
-- Smooth motion between frames
+- transform inheritance between frames
+- deterministic interpolation rules
+- support for partial updates without corrupting neighboring keyframes
 
-## Status
+## Target Hints
 
-Pending
+- frontend/app/components/OverlayCalibrationScreen.js
+- frontend/lib/userPreferences.js
+- frontend/lib/api.js
+
+## Validation
+
+- keyframes can be created, edited, removed, and replayed deterministically
+- interpolation behaves consistently between sparse keyframes
+- stored keyframes remain compatible with the overlay data model
+
+## Notes
+
+- This task depends on task 009 defining the canonical transform schema.

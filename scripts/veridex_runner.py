@@ -88,14 +88,33 @@ def glob_matches(root: Path, patterns):
     return matches
 
 
+def parse_bullets(text: str):
+    items = []
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("- "):
+            items.append(line[2:].strip())
+        elif line.startswith("-"):
+            items.append(line[1:].strip())
+        else:
+            items.append(line)
+    return [item for item in items if item]
+
+
 def determine_targets(root: Path, task, targeting, max_target_files):
     explicit = []
+    hint_patterns = parse_bullets(task["sections"].get("Target Hints", ""))
     for rule in targeting.get("task_rules", []):
         if rule.get("task_id") == task["task_id"].split("-")[0] + "-" + task["task_id"].split("-")[1]:
             explicit.extend(rule.get("targets", []))
     owner = task.get("Owner", "")
     defaults = targeting.get("owner_defaults", {}).get(owner, [])
-    return glob_matches(root, explicit + defaults)[:max_target_files]
+    patterns = hint_patterns + explicit
+    if not patterns:
+        patterns = defaults
+    return glob_matches(root, patterns)[:max_target_files]
 
 
 def render_bullets(text):
@@ -111,7 +130,7 @@ def render_bullets(text):
 
 def review_packet(task, targets):
     target_lines = "\n".join(f"- {item}" for item in targets) if targets else "- No matches found"
-    return "\n".join([
+    lines = [
         f"# Review Packet - {task['task_id']}",
         "",
         "## Task",
@@ -132,24 +151,42 @@ def review_packet(task, targets):
         "## Goal",
         task["sections"].get("Goal", "") or "Not specified",
         "",
+    ]
+    if task["sections"].get("Current Slice"):
+        lines.extend([
+            "## Current Slice",
+            task["sections"]["Current Slice"],
+            "",
+        ])
+    lines.extend([
         "## Requirements",
         render_bullets(task["sections"].get("Requirements", "")),
         "",
+    ])
+    if task["sections"].get("Constraints"):
+        lines.extend([
+            "## Constraints",
+            render_bullets(task["sections"]["Constraints"]),
+            "",
+        ])
+    lines.extend([
         "## Target Files",
         target_lines,
         "",
         "## Execution Plan",
-        "- Read the task file and current target files.",
-        "- Confirm ownership, scope, and constraints before editing.",
-        "- Produce a human review packet before code changes.",
+        "- Confirm task scope against the goal, requirements, and constraints.",
+        "- Inspect the target files and narrow to the minimum implementation surface.",
+        "- Execute only the current slice unless the task file explicitly widens scope.",
+        "- Validate against the task checklist before moving the task forward.",
         "",
         "## Validation Checklist",
         render_bullets(task["sections"].get("Validation", "")),
         "",
         "## Notes",
         task["sections"].get("Notes", "") or "None",
-        ""
+        "",
     ])
+    return "\n".join(lines)
 
 
 def update_status_in_file(path: Path, new_status: str):

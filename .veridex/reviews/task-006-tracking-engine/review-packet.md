@@ -19,36 +19,39 @@ In Progress
 Implement card tracking system to maintain overlay alignment.
 
 ## Current Slice
-First implementation pass is limited to calibration tracking instrumentation:
+First pass is limited to the live calibration surface:
 
-- detect a live card polygon in the calibration camera feed
-- render corner points and a tracked polygon
-- estimate rotation and scale
-- allow lock or unlock of a reference transform
-- surface tracking state in the calibration UI
+- detect a live card polygon from the camera feed
+- estimate corner points
+- estimate rotation
+- estimate scale change against a locked reference
+- expose tracking state and lock or unlock controls
 
-Deferred to later passes:
+This pass does not yet attach the production overlay to the tracked transform.
 
-- attach the production overlay to the tracked transform
-- stabilize tracking across harder motion and lighting transitions
-- persist richer tracking references beyond the snapshot metadata
+## Requirements
+- Track card edges
+- Track corner points
+- Track card rotation
+- Track scale changes
+- Maintain overlay alignment
+- Use card as reference for signature
 
 ## Target Files
 - frontend/app/components/CalibrationScreen.js
+- frontend/app/components/OverlayCalibrationScreen.js
+- frontend/lib/userPreferences.js
 
 ## Execution Plan
-- Confirm the existing live calibration metrics and camera loop.
-- Add explicit tracking transform metrics on top of the current heuristics.
-- Render the tracked polygon and corners in the live calibration view.
-- Add lock or unlock controls and baseline drift comparison.
-- Validate with a production build before widening scope.
+- Confirm task scope against the goal, requirements, and constraints.
+- Inspect the target files and narrow to the minimum implementation surface.
+- Execute only the current slice unless the task file explicitly widens scope.
+- Validate against the task checklist before moving the task forward.
 
 ## Validation Checklist
-- Calibration screen renders a live tracked polygon when a card is detected
-- Corner points update with card movement
-- Rotation and scale metrics update without breaking existing calibration guidance
-- Locking tracking stores a baseline and exposes live drift values
-- `next build` passes
+- Overlay stays aligned during movement
+- Signature stays attached to card
+- No drift during motion
 
 ## Notes
-This packet documents only the first tracking slice. Full overlay attachment remains a later task-006 pass.
+None

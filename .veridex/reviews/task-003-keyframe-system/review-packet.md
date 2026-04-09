@@ -7,7 +7,7 @@ Keyframe System
 Logic Agent
 
 ## Support
-UI Agent
+UI Agent, Vision Agent
 
 ## Priority
 High
@@ -16,38 +16,30 @@ High
 Pending
 
 ## Goal
-Create flexible keyframe tracking system for overlay alignment
+Create a keyframe system that stores overlay transforms over time and supports interpolation between manual and automatic alignment points.
 
 ## Requirements
-- Auto keyframe generation
-- Manual keyframe placement
-- Tap screen to add keyframe
-- Pause video and select frame
-- Adjustable time gap between frames
-- Start tracking marker
-- End tracking marker
-- Frame drag/reposition support
-- Frame delete support
+- support manual keyframe creation and deletion
+- support start and end markers for tracked segments
+- define a keyframe shape that can hold card and signature transforms
+- interpolate smoothly between adjacent keyframes
+- allow later tasks to attach tracking confidence and timestamps
 
 ## Target Files
-- frontend/lib/api.js
-- frontend/lib/coachThreads.js
-- frontend/lib/navigation.js
-- frontend/lib/page.js
-- frontend/lib/userPreferences.js
 - frontend/app/components/OverlayCalibrationScreen.js
-- frontend/app/components/RoomCoachOverlay.js
-- calibrate.py
-- extract.py
-- main.py
+- frontend/lib/userPreferences.js
+- frontend/lib/api.js
 
 ## Execution Plan
-- Read the task file and current target files.
-- Confirm ownership, scope, and constraints before editing.
-- Produce a human review packet before code changes.
+- Confirm task scope against the goal, requirements, and constraints.
+- Inspect the target files and narrow to the minimum implementation surface.
+- Execute only the current slice unless the task file explicitly widens scope.
+- Validate against the task checklist before moving the task forward.
 
 ## Validation Checklist
-- None
+- keyframes can be created, edited, removed, and replayed deterministically
+- interpolation behaves consistently between sparse keyframes
+- stored keyframes remain compatible with the overlay data model
 
 ## Notes
-None
+- This task depends on task 009 defining the canonical transform schema.
