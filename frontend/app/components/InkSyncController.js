@@ -568,14 +568,19 @@ function WorkflowStatus({ calibrationSnapshot, overlayCalibration, revealCalibra
         <StatusChip label="Reveal" value={revealReady ? "READY" : "MISSING"} tone={revealReady ? "success" : "warn"} />
       </div>
 
-      <div className="readinessCopy">
-        {calibrationReady
-          ? `Tracking snapshot saved ${new Date(calibrationSnapshot.savedAt).toLocaleString()}.`
-          : "Open calibration and save a tracking snapshot before performance."}
-      </div>
+        <div className="readinessCopy">
+          {calibrationReady
+            ? `Tracking snapshot saved ${new Date(calibrationSnapshot.savedAt).toLocaleString()}.`
+            : "Open calibration and save a tracking snapshot before performance."}
+        </div>
+        <div className="readinessCopy">
+          {overlayReady && revealReady
+            ? "Overlay and reveal calibrations are present."
+            : "Overlay and reveal calibration passes still need to be verified before performance."}
+        </div>
 
-      <button type="button" className="navButton" onClick={onOpenCalibration}>
-        Open Calibration Workspace
+        <button type="button" className="navButton" onClick={onOpenCalibration}>
+          Open Calibration Workspace
       </button>
 
       <style jsx>{`
@@ -633,6 +638,69 @@ function WorkflowStatus({ calibrationSnapshot, overlayCalibration, revealCalibra
   );
 }
 
+function WorkspacePreview({ title, subtitle, imageSrc, fallback }) {
+  return (
+    <div className="previewCard">
+      <div className="previewMeta">
+        <strong>{title}</strong>
+        <span>{subtitle}</span>
+      </div>
+      {imageSrc ? (
+        <img src={imageSrc} alt={title} className="previewImage" />
+      ) : (
+        <div className="previewFallback">{fallback}</div>
+      )}
+
+      <style jsx>{`
+        .previewCard {
+          border-radius: 14px;
+          border: 1px dashed rgba(255, 255, 255, 0.16);
+          background: rgba(255, 255, 255, 0.02);
+          overflow: hidden;
+          min-height: 132px;
+        }
+
+        .previewMeta {
+          display: grid;
+          gap: 4px;
+          padding: 10px 12px;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .previewMeta strong {
+          color: #f3f6fc;
+          font-size: 13px;
+        }
+
+        .previewMeta span {
+          color: #9fb0cb;
+          font-size: 12px;
+        }
+
+        .previewImage {
+          display: block;
+          width: 100%;
+          min-height: 92px;
+          max-height: 180px;
+          object-fit: cover;
+          background: #0c1016;
+        }
+
+        .previewFallback {
+          min-height: 92px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          padding: 12px;
+          color: #8f9bb0;
+          font-size: 13px;
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export default function InkSyncController() {
   const router = useRouter();
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -654,6 +722,9 @@ export default function InkSyncController() {
   const [calibrationSnapshot, setCalibrationSnapshot] = useState(null);
   const [overlayCalibration, setOverlayCalibration] = useState(null);
   const [revealCalibration, setRevealCalibration] = useState(null);
+  const calibrationReady = Boolean(calibrationSnapshot?.savedAt);
+  const overlayReady = Boolean(overlayCalibration?.activeFrame && Object.keys(overlayCalibration?.frames ?? {}).length);
+  const revealReady = Boolean(revealCalibration?.activeFrame && Object.keys(revealCalibration?.frames ?? {}).length);
 
   useEffect(() => {
     setPipelineState(isUnlocked ? "idle" : "locked");
@@ -745,16 +816,27 @@ export default function InkSyncController() {
   }
 
   function runLightingPrecheck() {
+    if (!calibrationReady) {
+      setPrecheckResult("NO");
+      setPipelineState("error");
+      return;
+    }
+
     setPipelineState("precheck");
 
     window.setTimeout(() => {
-      const passed = extractionConfidence >= 0.75;
+      const passed = extractionConfidence >= 0.75 && overlayReady && revealReady;
       setPrecheckResult(passed ? "YES" : "NO");
       setPipelineState("idle");
     }, 700);
   }
 
   function armSystem() {
+    if (!calibrationReady || !overlayReady || !revealReady || precheckResult !== "YES") {
+      setPipelineState("error");
+      return;
+    }
+
     setIsArmed(true);
     setPipelineState("armed");
   }
@@ -771,6 +853,10 @@ export default function InkSyncController() {
   }
 
   function startReveal() {
+    if (pipelineState !== "ready") {
+      return;
+    }
+
     setPipelineState("revealing");
 
     window.setTimeout(() => {
@@ -914,9 +1000,32 @@ export default function InkSyncController() {
             <div className="pipeline">{availableStates}</div>
 
             <div className="previewGrid">
-              <div className="previewBox">Burst frame preview placeholder</div>
-              <div className="previewBox">Signature layer placeholder</div>
-              <div className="previewBox">Clean card preview placeholder</div>
+              <WorkspacePreview
+                title="Capture Snapshot"
+                subtitle={calibrationSnapshot?.savedAt ? new Date(calibrationSnapshot.savedAt).toLocaleString() : "No saved snapshot"}
+                imageSrc={calibrationSnapshot?.capturedPhoto || ""}
+                fallback="No captured tracking snapshot yet."
+              />
+              <WorkspacePreview
+                title="Overlay Alignment"
+                subtitle={overlayCalibration?.activeFrame ? `Active frame ${overlayCalibration.activeFrame}` : "No overlay calibration"}
+                imageSrc=""
+                fallback={
+                  overlayReady
+                    ? `Overlay frames saved: ${Object.keys(overlayCalibration?.frames ?? {}).length}`
+                    : "Overlay calibration has not been saved yet."
+                }
+              />
+              <WorkspacePreview
+                title="Reveal Alignment"
+                subtitle={revealCalibration?.activeFrame ? `Active frame ${revealCalibration.activeFrame}` : "No reveal calibration"}
+                imageSrc=""
+                fallback={
+                  revealReady
+                    ? `Reveal frames saved: ${Object.keys(revealCalibration?.frames ?? {}).length}`
+                    : "Signature reveal calibration has not been saved yet."
+                }
+              />
             </div>
           </section>
         </main>
@@ -1058,20 +1167,6 @@ export default function InkSyncController() {
         .previewGrid {
           display: grid;
           gap: 10px;
-        }
-
-        .previewBox {
-          min-height: 110px;
-          border-radius: 14px;
-          border: 1px dashed rgba(255, 255, 255, 0.16);
-          background: rgba(255, 255, 255, 0.02);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          color: #8f9bb0;
-          font-size: 13px;
-          text-align: center;
-          padding: 12px;
         }
 
         @media (max-width: 520px) {
