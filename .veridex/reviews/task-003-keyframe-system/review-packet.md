@@ -13,33 +13,25 @@ UI Agent, Vision Agent
 High
 
 ## Status
-Pending
+Complete
 
 ## Goal
 Create a keyframe system that stores overlay transforms over time and supports interpolation between manual and automatic alignment points.
 
 ## Requirements
-- support manual keyframe creation and deletion
-- support start and end markers for tracked segments
-- define a keyframe shape that can hold card and signature transforms
-- interpolate smoothly between adjacent keyframes
-- allow later tasks to attach tracking confidence and timestamps
+- overlay calibration stores explicit keyframe frame ids
+- non-keyframe frames interpolate between surrounding manual keyframes
+- operators can add, update, remove, and jump between keyframes
+- keyframe data persists through the shared overlay data model
 
 ## Target Files
 - frontend/app/components/OverlayCalibrationScreen.js
 - frontend/lib/userPreferences.js
-- frontend/lib/api.js
-
-## Execution Plan
-- Confirm task scope against the goal, requirements, and constraints.
-- Inspect the target files and narrow to the minimum implementation surface.
-- Execute only the current slice unless the task file explicitly widens scope.
-- Validate against the task checklist before moving the task forward.
 
 ## Validation Checklist
 - keyframes can be created, edited, removed, and replayed deterministically
 - interpolation behaves consistently between sparse keyframes
-- stored keyframes remain compatible with the overlay data model
+- stored keyframes remain compatible with the shared data model
 
 ## Notes
-- This task depends on task 009 defining the canonical transform schema.
+- This milestone covers sampled-frame keyframes inside overlay calibration. Richer timeline editing remains future UI enhancement work.

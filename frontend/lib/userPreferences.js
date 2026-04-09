@@ -44,6 +44,14 @@ function normalizeFrameMap(frames, fallback = DEFAULT_CARD_TRANSFORM) {
   );
 }
 
+function normalizeFrameIdList(frameIds) {
+  if (!Array.isArray(frameIds)) {
+    return [];
+  }
+
+  return Array.from(new Set(frameIds.filter((frameId) => typeof frameId === "string" && frameId)));
+}
+
 export function normalizeTrackingState(value) {
   if (!value || typeof value !== "object") {
     return { locked: false, reference: null };
@@ -146,6 +154,7 @@ function buildFrameSnapshot(value, fallbackTransform = DEFAULT_CARD_TRANSFORM) {
     activeFrame,
     frameOverlay: normalizeCardTransform(activeTransform, fallbackTransform),
     frames,
+    keyframes: normalizeFrameIdList(value?.keyframes),
     updatedAt: typeof value?.updatedAt === "string" ? value.updatedAt : new Date().toISOString(),
   };
 }

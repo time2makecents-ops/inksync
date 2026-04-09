@@ -96,6 +96,29 @@ function normalizeOverlay(overlay) {
   };
 }
 
+function frameIdToSeconds(frameId) {
+  const match = /^frame_(\d+)_(\d+)$/.exec(frameId);
+  if (!match) {
+    return null;
+  }
+
+  return Number.parseInt(match[1], 10) + Number.parseInt(match[2], 10) / 10;
+}
+
+function interpolateValue(start, end, progress) {
+  return start + ((end - start) * progress);
+}
+
+function interpolateOverlay(startOverlay, endOverlay, progress) {
+  return normalizeOverlay({
+    x: interpolateValue(startOverlay.x, endOverlay.x, progress),
+    y: interpolateValue(startOverlay.y, endOverlay.y, progress),
+    width: interpolateValue(startOverlay.width, endOverlay.width, progress),
+    height: interpolateValue(startOverlay.height, endOverlay.height, progress),
+    rotation: interpolateValue(startOverlay.rotation, endOverlay.rotation, progress),
+  });
+}
+
 export default function OverlayCalibrationScreen({ mode = "overlay" }) {
   const stageRef = useRef(null);
   const dragStateRef = useRef(null);
@@ -104,6 +127,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
   const [sourceSize, setSourceSize] = useState({ width: 1080, height: 1920 });
   const [cardGuideByFrame, setCardGuideByFrame] = useState({});
   const [overlaysByFrame, setOverlaysByFrame] = useState({});
+  const [keyframeIds, setKeyframeIds] = useState([]);
   const [status, setStatus] = useState("Loading reference frames...");
   const [zoom, setZoom] = useState(1);
   const [stepSize, setStepSize] = useState(1);
@@ -138,6 +162,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
             Object.entries(stored.frames).map(([key, value]) => [key, normalizeOverlay(normalizeCardTransform(value, DEFAULT_OVERLAY))])
           );
           setOverlaysByFrame(normalizedFrames);
+          setKeyframeIds(Array.isArray(stored.keyframes) ? stored.keyframes : Object.keys(normalizedFrames));
         }
 
         setTrackingSnapshot(getStoredCalibrationSnapshot());
@@ -154,6 +179,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
                 Object.entries(backupPayload.frames).map(([key, value]) => [key, normalizeOverlay(value)])
               );
               setOverlaysByFrame((current) => ({ ...backupFrames, ...current }));
+              setKeyframeIds((current) => current.length ? current : Object.keys(backupFrames));
             }
           }
         } catch {
@@ -183,6 +209,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
             }
             return next;
           });
+          setKeyframeIds((current) => current.length ? current : Object.keys(TARGET_FRAME_OVERLAYS));
         }
         setStepSize(0.001);
 
@@ -219,6 +246,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
       activeFrame: frameId,
       frameOverlay: normalizeOverlay(overlaysByFrame[frameId] ?? DEFAULT_OVERLAY),
       frames: overlaysByFrame,
+      keyframes: keyframeIds,
       updatedAt: new Date().toISOString(),
     }, DEFAULT_OVERLAY);
 
@@ -235,7 +263,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
       },
       body: JSON.stringify(snapshot),
     }).catch(() => {});
-  }, [isRevealMode, overlaysByFrame, sourceSize.height, sourceSize.width]);
+  }, [frameId, isRevealMode, keyframeIds, overlaysByFrame, sourceSize.height, sourceSize.width]);
 
   useEffect(() => {
     if (!isRevealMode || !isRevealRunning) {
@@ -273,8 +301,60 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
     () => frames.find((frame) => frame.id === frameId) ?? null,
     [frameId, frames]
   );
+  const sortedKeyframeIds = useMemo(
+    () => [...new Set(keyframeIds)]
+      .filter((keyframeId) => overlaysByFrame[keyframeId])
+      .sort((left, right) => (frameIdToSeconds(left) ?? 0) - (frameIdToSeconds(right) ?? 0)),
+    [keyframeIds, overlaysByFrame]
+  );
+  const overlay = useMemo(() => {
+    if (overlaysByFrame[frameId]) {
+      return normalizeOverlay(overlaysByFrame[frameId]);
+    }
 
-  const overlay = normalizeOverlay(overlaysByFrame[frameId] ?? DEFAULT_OVERLAY);
+    const currentSeconds = frameIdToSeconds(frameId);
+    if (currentSeconds === null || !sortedKeyframeIds.length) {
+      return DEFAULT_OVERLAY;
+    }
+
+    let previousKeyframeId = null;
+    let nextKeyframeId = null;
+    for (const keyframeId of sortedKeyframeIds) {
+      const keyframeSeconds = frameIdToSeconds(keyframeId);
+      if (keyframeSeconds === null) {
+        continue;
+      }
+      if (keyframeSeconds <= currentSeconds) {
+        previousKeyframeId = keyframeId;
+      }
+      if (keyframeSeconds >= currentSeconds) {
+        nextKeyframeId = keyframeId;
+        break;
+      }
+    }
+
+    if (previousKeyframeId && nextKeyframeId && previousKeyframeId !== nextKeyframeId) {
+      const previousSeconds = frameIdToSeconds(previousKeyframeId);
+      const nextSeconds = frameIdToSeconds(nextKeyframeId);
+      if (previousSeconds !== null && nextSeconds !== null && nextSeconds > previousSeconds) {
+        const progress = (currentSeconds - previousSeconds) / (nextSeconds - previousSeconds);
+        return interpolateOverlay(
+          normalizeOverlay(overlaysByFrame[previousKeyframeId]),
+          normalizeOverlay(overlaysByFrame[nextKeyframeId]),
+          clamp(progress, 0, 1)
+        );
+      }
+    }
+
+    if (previousKeyframeId) {
+      return normalizeOverlay(overlaysByFrame[previousKeyframeId]);
+    }
+    if (nextKeyframeId) {
+      return normalizeOverlay(overlaysByFrame[nextKeyframeId]);
+    }
+    return DEFAULT_OVERLAY;
+  }, [frameId, overlaysByFrame, sortedKeyframeIds]);
+  const isKeyframe = keyframeIds.includes(frameId);
   const trackedOverlay = useMemo(
     () => {
       const tracked = buildTrackedCardTransformFromSnapshot(trackingSnapshot, sourceSize, overlay);
@@ -301,13 +381,14 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
 
   function updateOverlay(updater) {
     setOverlaysByFrame((current) => {
-      const existing = current[frameId] ?? DEFAULT_OVERLAY;
+      const existing = current[frameId] ?? overlay;
       const next = typeof updater === "function" ? updater(normalizeOverlay(existing)) : normalizeOverlay(updater);
       return {
         ...current,
         [frameId]: normalizeOverlay(next),
       };
     });
+    setKeyframeIds((current) => (current.includes(frameId) ? current : [...current, frameId]));
   }
 
   function clampOverlay(nextOverlay) {
@@ -503,6 +584,46 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
       }
       return next;
     });
+    setKeyframeIds(frames.map((frame) => frame.id));
+  }
+
+  function addKeyframe() {
+    updateOverlay(overlay);
+    setStatus("Saved the current frame as a keyframe.");
+  }
+
+  function removeKeyframe() {
+    setKeyframeIds((current) => current.filter((keyframeId) => keyframeId !== frameId));
+    setOverlaysByFrame((current) => {
+      const next = { ...current };
+      delete next[frameId];
+      return next;
+    });
+    setStatus("Removed the current keyframe. The frame will now inherit or interpolate.");
+  }
+
+  function jumpToKeyframe(direction) {
+    if (!sortedKeyframeIds.length) {
+      return;
+    }
+
+    const currentSeconds = frameIdToSeconds(frameId) ?? 0;
+    const ordered = sortedKeyframeIds
+      .map((keyframeId) => ({ keyframeId, seconds: frameIdToSeconds(keyframeId) ?? 0 }))
+      .sort((left, right) => left.seconds - right.seconds);
+
+    if (direction < 0) {
+      const previous = [...ordered].reverse().find((entry) => entry.seconds < currentSeconds);
+      if (previous) {
+        setFrameId(previous.keyframeId);
+      }
+      return;
+    }
+
+    const next = ordered.find((entry) => entry.seconds > currentSeconds);
+    if (next) {
+      setFrameId(next.keyframeId);
+    }
   }
 
   function applyTrackedReference() {
@@ -601,6 +722,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
       activeFrame: frameId,
       frameOverlay: overlay,
       frames: overlaysByFrame,
+      keyframes: keyframeIds,
     },
     null,
     2
@@ -721,7 +843,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
               <button
                 key={frame.id}
                 type="button"
-                className={`frameTab ${frame.id === frameId ? "frameTabActive" : ""}`}
+                className={`frameTab ${frame.id === frameId ? "frameTabActive" : ""} ${keyframeIds.includes(frame.id) ? "frameTabKeyframe" : ""}`}
                 onClick={() => setFrameId(frame.id)}
               >
                 {frame.label}
@@ -943,6 +1065,33 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           {!isRevealMode ? (
             <div className="trackingPanel">
               <div className="trackingPanelHeader">
+                <strong>Keyframes</strong>
+                <span>{isKeyframe ? "Manual" : "Interpolated"}</span>
+              </div>
+              <div className="actionRow">
+                <button type="button" className="secondaryButton" onClick={addKeyframe}>
+                  {isKeyframe ? "Update Keyframe" : "Add Keyframe"}
+                </button>
+                <button type="button" className="secondaryButton" onClick={removeKeyframe} disabled={!isKeyframe}>
+                  Remove Keyframe
+                </button>
+              </div>
+              <div className="actionRow">
+                <button type="button" className="secondaryButton" onClick={() => jumpToKeyframe(-1)}>
+                  Prev Keyframe
+                </button>
+                <button type="button" className="secondaryButton" onClick={() => jumpToKeyframe(1)}>
+                  Next Keyframe
+                </button>
+              </div>
+              <div className="note">
+                Manual keyframes persist on sampled frames. Non-keyframe frames interpolate between the nearest saved keyframes.
+              </div>
+            </div>
+          ) : null}
+          {!isRevealMode ? (
+            <div className="trackingPanel">
+              <div className="trackingPanelHeader">
                 <strong>Tracking Reference</strong>
                 <span>{trackingSnapshot?.tracking?.locked ? "Locked" : trackedOverlay ? "Live" : "Missing"}</span>
               </div>
@@ -965,6 +1114,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
             <div><strong>Height:</strong> {overlay.height}px</div>
             <div><strong>Rotation:</strong> {overlay.rotation}deg</div>
             <div><strong>Step:</strong> {stepSize}px</div>
+            <div><strong>Keyframe:</strong> {isKeyframe ? "Yes" : "Interpolated"}</div>
             <div><strong>Tracked:</strong> {trackedOverlay ? `${trackedOverlay.width.toFixed(1)} x ${trackedOverlay.height.toFixed(1)} px` : "None"}</div>
           </div>
 
@@ -1088,6 +1238,10 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
         .frameTabActive {
           background: #10233b;
           color: #fff;
+        }
+
+        .frameTabKeyframe {
+          box-shadow: inset 0 0 0 2px rgba(59, 130, 246, 0.35);
         }
 
         .stageWrap {
