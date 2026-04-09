@@ -512,8 +512,9 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
     if (mode === "resize") {
       updateOverlay(() => {
         let next = { ...startOverlay };
+        const edgeName = edge ?? "";
 
-        if (edge === "left") {
+        if (edgeName.includes("left")) {
           const nextX = clamp(startOverlay.x + dx, 0, startOverlay.x + startOverlay.width - MIN_OVERLAY_SIZE);
           const right = startOverlay.x + startOverlay.width;
           next = {
@@ -523,12 +524,12 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           };
         }
 
-        if (edge === "right") {
+        if (edgeName.includes("right")) {
           const nextWidth = clamp(startOverlay.width + dx, MIN_OVERLAY_SIZE, sourceSize.width - startOverlay.x);
           next = { ...next, width: nextWidth };
         }
 
-        if (edge === "top") {
+        if (edgeName.includes("top")) {
           const nextY = clamp(startOverlay.y + dy, 0, startOverlay.y + startOverlay.height - MIN_OVERLAY_SIZE);
           const bottom = startOverlay.y + startOverlay.height;
           next = {
@@ -538,7 +539,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           };
         }
 
-        if (edge === "bottom") {
+        if (edgeName.includes("bottom")) {
           const nextHeight = clamp(startOverlay.height + dy, MIN_OVERLAY_SIZE, sourceSize.height - startOverlay.y);
           next = { ...next, height: nextHeight };
         }
@@ -585,6 +586,17 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
 
   const handlePositions = [
     {
+      key: "top-left",
+      className: "handleTopLeft",
+      style: {
+        left: `-${HANDLE_GAP}px`,
+        top: `-${HANDLE_GAP}px`,
+        transform: "translate(-50%, -50%)",
+      },
+      cursor: "nwse-resize",
+      edge: "top-left",
+    },
+    {
       key: "top",
       className: "handleTop",
       style: {
@@ -594,6 +606,17 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
       },
       cursor: "ns-resize",
       edge: "top",
+    },
+    {
+      key: "top-right",
+      className: "handleTopRight",
+      style: {
+        right: `-${HANDLE_GAP}px`,
+        top: `-${HANDLE_GAP}px`,
+        transform: "translate(50%, -50%)",
+      },
+      cursor: "nesw-resize",
+      edge: "top-right",
     },
     {
       key: "right",
@@ -607,6 +630,17 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
       edge: "right",
     },
     {
+      key: "bottom-right",
+      className: "handleBottomRight",
+      style: {
+        right: `-${HANDLE_GAP}px`,
+        bottom: `-${HANDLE_GAP}px`,
+        transform: "translate(50%, 50%)",
+      },
+      cursor: "nwse-resize",
+      edge: "bottom-right",
+    },
+    {
       key: "bottom",
       className: "handleBottom",
       style: {
@@ -616,6 +650,17 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
       },
       cursor: "ns-resize",
       edge: "bottom",
+    },
+    {
+      key: "bottom-left",
+      className: "handleBottomLeft",
+      style: {
+        left: `-${HANDLE_GAP}px`,
+        bottom: `-${HANDLE_GAP}px`,
+        transform: "translate(-50%, 50%)",
+      },
+      cursor: "nesw-resize",
+      edge: "bottom-left",
     },
     {
       key: "left",
@@ -1113,10 +1158,22 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           inset: -8px;
         }
 
+        .handleTopLeft {
+          left: -${HANDLE_GAP}px;
+          top: -${HANDLE_GAP}px;
+          transform: translate(-50%, -50%);
+        }
+
         .handleTop {
           left: 50%;
           top: -${HANDLE_GAP}px;
           transform: translate(-50%, -50%);
+        }
+
+        .handleTopRight {
+          right: -${HANDLE_GAP}px;
+          top: -${HANDLE_GAP}px;
+          transform: translate(50%, -50%);
         }
 
         .handleRight {
@@ -1125,8 +1182,20 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           transform: translate(50%, -50%);
         }
 
+        .handleBottomRight {
+          right: -${HANDLE_GAP}px;
+          bottom: -${HANDLE_GAP}px;
+          transform: translate(50%, 50%);
+        }
+
         .handleBottom {
           left: 50%;
+          bottom: -${HANDLE_GAP}px;
+          transform: translate(-50%, 50%);
+        }
+
+        .handleBottomLeft {
+          left: -${HANDLE_GAP}px;
           bottom: -${HANDLE_GAP}px;
           transform: translate(-50%, 50%);
         }
@@ -1263,5 +1332,6 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
     </div>
   );
 }
+
 
 

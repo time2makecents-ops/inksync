@@ -13,7 +13,7 @@ None
 Medium
 
 ## Status
-Pending
+In Progress
 
 ## Goal
 Improve overlay control with interactive handles
@@ -28,23 +28,17 @@ Improve overlay control with interactive handles
 
 ## Target Files
 - frontend/app/components/OverlayCalibrationScreen.js
-- frontend/app/components/RoomCoachOverlay.js
-- frontend/app/components/CalibrationScreen.js
-- frontend/app/components/SignatureRevealCalibrationScreen.js
-- frontend/app/components/AccelerometerTest.js
-- frontend/app/components/AccountScreen.js
-- frontend/app/components/AnalyticsScreen.js
-- frontend/app/components/ClassroomCameraCard.js
-- frontend/app/components/ClassroomLandingScreen.js
-- frontend/app/components/ClassroomScreen.js
 
 ## Execution Plan
-- Read the task file and current target files.
-- Confirm ownership, scope, and constraints before editing.
-- Produce a human review packet before code changes.
+- Verify the current handle model in overlay calibration.
+- Add missing corner resize handles without widening scope to perspective warping.
+- Keep existing move, side resize, and rotate interactions intact.
 
 ## Validation Checklist
-- None
+- Four corner handles are visible and draggable.
+- Four side handles remain functional.
+- Rotate handle remains functional.
+- Drag-to-move still works with mouse and touch.
 
 ## Notes
-None
+Perspective/tilt adjustment remains a later pass after the full handle model is stabilized.
