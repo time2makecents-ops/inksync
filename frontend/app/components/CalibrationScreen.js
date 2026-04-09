@@ -24,6 +24,10 @@ const DEFAULT_METRICS = {
   aspectRatio: 0,
   centerX: 0,
   centerY: 0,
+  boxWidthRatio: 0,
+  boxHeightRatio: 0,
+  rotation: 0,
+  corners: [],
   confidence: 0,
   foundCard: false,
 };
@@ -55,6 +59,36 @@ function formatPercent(value) {
 
 function formatNumber(value) {
   return Number(value || 0).toFixed(1);
+}
+
+function normalizeDegrees(angle) {
+  let next = angle;
+  while (next > 180) {
+    next -= 360;
+  }
+  while (next < -180) {
+    next += 360;
+  }
+  return next;
+}
+
+function buildTrackingCorners(centerX, centerY, widthRatio, heightRatio, rotation) {
+  const angle = rotation * (Math.PI / 180);
+  const cos = Math.cos(angle);
+  const sin = Math.sin(angle);
+  const halfWidth = widthRatio / 2;
+  const halfHeight = heightRatio / 2;
+  const baseCorners = [
+    { x: -halfWidth, y: -halfHeight },
+    { x: halfWidth, y: -halfHeight },
+    { x: halfWidth, y: halfHeight },
+    { x: -halfWidth, y: halfHeight },
+  ];
+
+  return baseCorners.map((corner) => ({
+    x: clamp(centerX + (corner.x * cos) - (corner.y * sin), 0, 1),
+    y: clamp(centerY + (corner.x * sin) + (corner.y * cos), 0, 1),
+  }));
 }
 
 function summarizeGuidance(metrics) {
@@ -241,6 +275,7 @@ export default function CalibrationScreen() {
   const countdownTimerRef = useRef(null);
   const streamRef = useRef(null);
   const previousFrameRef = useRef(null);
+  const trackingLockRef = useRef(null);
 
   const [cameraStatus, setCameraStatus] = useState("Camera is off.");
   const [permissionError, setPermissionError] = useState("");
@@ -252,6 +287,7 @@ export default function CalibrationScreen() {
   const [countdown, setCountdown] = useState(0);
   const [capturedPhoto, setCapturedPhoto] = useState("");
   const [captureReview, setCaptureReview] = useState(DEFAULT_CAPTURE_REVIEW);
+  const [trackingLocked, setTrackingLocked] = useState(false);
 
   useEffect(() => {
     setSnapshot(getStoredCalibrationSnapshot());
@@ -283,8 +319,10 @@ export default function CalibrationScreen() {
     }
 
     previousFrameRef.current = null;
+    trackingLockRef.current = null;
     setIsRunning(false);
     setCountdown(0);
+    setTrackingLocked(false);
     setCameraStatus("Camera is off.");
   }
 
@@ -413,6 +451,11 @@ export default function CalibrationScreen() {
     let minY = height;
     let maxX = -1;
     let maxY = -1;
+    let sumX = 0;
+    let sumY = 0;
+    let sumXX = 0;
+    let sumYY = 0;
+    let sumXY = 0;
 
     const gray = new Uint8Array(width * height);
 
@@ -428,6 +471,11 @@ export default function CalibrationScreen() {
 
         if (luma > 160 && red > 120 && green > 110 && blue > 100) {
           brightCount += 1;
+          sumX += x;
+          sumY += y;
+          sumXX += x * x;
+          sumYY += y * y;
+          sumXY += x * y;
           minX = Math.min(minX, x);
           minY = Math.min(minY, y);
           maxX = Math.max(maxX, x);
@@ -450,6 +498,10 @@ export default function CalibrationScreen() {
     let aspectRatio = 0;
     let centerX = 0;
     let centerY = 0;
+    let boxWidthRatio = 0;
+    let boxHeightRatio = 0;
+    let rotation = 0;
+    let corners = [];
 
     if (foundCard) {
       const boxWidth = maxX - minX + 1;
@@ -458,6 +510,16 @@ export default function CalibrationScreen() {
       aspectRatio = boxWidth / Math.max(boxHeight, 1);
       centerX = ((minX + maxX) / 2) / width;
       centerY = ((minY + maxY) / 2) / height;
+      boxWidthRatio = boxWidth / width;
+      boxHeightRatio = boxHeight / height;
+
+      const meanX = sumX / brightCount;
+      const meanY = sumY / brightCount;
+      const covXX = (sumXX / brightCount) - (meanX * meanX);
+      const covYY = (sumYY / brightCount) - (meanY * meanY);
+      const covXY = (sumXY / brightCount) - (meanX * meanY);
+      rotation = normalizeDegrees((Math.atan2(2 * covXY, covXX - covYY) * 180) / Math.PI);
+      corners = buildTrackingCorners(centerX, centerY, boxWidthRatio, boxHeightRatio, rotation);
     }
 
     let motion = 0;
@@ -503,6 +565,10 @@ export default function CalibrationScreen() {
       aspectRatio,
       centerX,
       centerY,
+      boxWidthRatio,
+      boxHeightRatio,
+      rotation,
+      corners,
       confidence,
       foundCard,
     };
@@ -520,8 +586,17 @@ export default function CalibrationScreen() {
         motion: Number(formatNumber(metrics.motion)),
         areaRatio: Number(formatNumber(metrics.areaRatio)),
         aspectRatio: Number(formatNumber(metrics.aspectRatio)),
+        rotation: Number(formatNumber(metrics.rotation)),
         confidence: Number(formatNumber(metrics.confidence * 100)),
       },
+      tracking: trackingLocked && trackingLockRef.current
+        ? {
+            locked: true,
+            reference: trackingLockRef.current,
+          }
+        : {
+            locked: false,
+          },
       guidance,
       capturedPhoto,
       captureReview,
@@ -531,6 +606,45 @@ export default function CalibrationScreen() {
   }
 
   const guideBoxStyle = getGuideBoxStyle(metrics.foundCard, metrics.confidence);
+  const trackingState = !metrics.foundCard
+    ? "searching"
+    : trackingLocked
+      ? "locked"
+      : metrics.confidence >= 0.78
+        ? "tracking"
+        : "acquiring";
+  const trackingTone = trackingState === "locked" || trackingState === "tracking" ? "good" : "warn";
+  const lockedScaleDelta = trackingLocked && trackingLockRef.current?.areaRatio
+    ? Math.sqrt(metrics.areaRatio / Math.max(trackingLockRef.current.areaRatio, 0.0001))
+    : 1;
+  const lockedRotationDelta = trackingLocked && trackingLockRef.current
+    ? normalizeDegrees(metrics.rotation - trackingLockRef.current.rotation)
+    : 0;
+  const trackingPolygon = metrics.corners.map((corner) => `${corner.x * 1000},${corner.y * 1000}`).join(" ");
+
+  function toggleTrackingLock() {
+    if (trackingLocked) {
+      trackingLockRef.current = null;
+      setTrackingLocked(false);
+      setCameraStatus("Tracking unlocked. Live card transform is still visible.");
+      return;
+    }
+
+    if (!metrics.foundCard) {
+      setCameraStatus("Bring the card fully into frame before locking tracking.");
+      return;
+    }
+
+    trackingLockRef.current = {
+      centerX: metrics.centerX,
+      centerY: metrics.centerY,
+      areaRatio: metrics.areaRatio,
+      rotation: metrics.rotation,
+      confidence: metrics.confidence,
+    };
+    setTrackingLocked(true);
+    setCameraStatus("Tracking locked to the current card transform.");
+  }
 
   return (
     <div className="calibrationShell">
@@ -572,10 +686,35 @@ export default function CalibrationScreen() {
 
             <div className="videoFrame">
               <video ref={videoRef} className="videoFeed" playsInline muted />
+              {metrics.foundCard ? (
+                <svg className="trackingOverlay" viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
+                  <polygon
+                    points={trackingPolygon}
+                    className={`trackingPolygon trackingPolygon${trackingTone === "good" ? "Good" : "Warn"}`}
+                  />
+                  {metrics.corners.map((corner, index) => (
+                    <circle
+                      key={`tracking-corner-${index + 1}`}
+                      cx={corner.x * 1000}
+                      cy={corner.y * 1000}
+                      r="9"
+                      className="trackingCorner"
+                    />
+                  ))}
+                </svg>
+              ) : null}
               <div className="guideBox" style={guideBoxStyle} aria-hidden="true" />
               <div className="guideCenter" aria-hidden="true" />
             </div>
             <canvas ref={canvasRef} className="hiddenCanvas" />
+            <div className="trackingToolbar">
+              <div className={`confidencePill confidencePill${trackingTone === "good" ? "Good" : "Warn"}`}>
+                {trackingState}
+              </div>
+              <button type="button" className="ghost-button" onClick={toggleTrackingLock} disabled={!metrics.foundCard && !trackingLocked}>
+                {trackingLocked ? "Unlock Tracking" : "Lock Tracking"}
+              </button>
+            </div>
           </section>
 
           <section className="panel elevated-panel">
@@ -607,6 +746,14 @@ export default function CalibrationScreen() {
                 <span className="statLabel">Card Size</span>
                 <strong>{formatPercent(metrics.areaRatio)}</strong>
               </div>
+              <div className="statCard">
+                <span className="statLabel">Rotation</span>
+                <strong>{formatNumber(metrics.rotation)} deg</strong>
+              </div>
+              <div className="statCard">
+                <span className="statLabel">Scale</span>
+                <strong>{trackingLocked ? `${formatNumber(lockedScaleDelta)}x` : "Live"}</strong>
+              </div>
             </div>
 
             <div className="list-stack dense">
@@ -615,11 +762,22 @@ export default function CalibrationScreen() {
                 <p className="helper-copy">
                   Center X/Y: {formatNumber(metrics.centerX)} / {formatNumber(metrics.centerY)}. Aspect ratio: {formatNumber(metrics.aspectRatio)}.
                 </p>
+                <p className="helper-copy">
+                  Box W/H: {formatPercent(metrics.boxWidthRatio)} / {formatPercent(metrics.boxHeightRatio)}. Rotation delta: {trackingLocked ? `${formatNumber(lockedRotationDelta)} deg` : "lock tracking to compare"}.
+                </p>
               </div>
               <div className="muted-panel">
                 <strong>Ideal pass</strong>
                 <p className="helper-copy">
                   Keep the card centered in the guide box, almost parallel to the phone, and slow enough that the edges stay crisp.
+                </p>
+              </div>
+              <div className="muted-panel">
+                <strong>Tracking engine</strong>
+                <p className="helper-copy">
+                  {trackingLocked
+                    ? "Tracking is locked to the current card transform. Move the card to judge live rotation and scale drift."
+                    : "Tracking is live. Lock it once the card is centered to compare transform changes during motion."}
                 </p>
               </div>
             </div>
@@ -753,6 +911,47 @@ export default function CalibrationScreen() {
 
         .hiddenCanvas {
           display: none;
+        }
+
+        .trackingOverlay {
+          position: absolute;
+          inset: 0;
+          width: 100%;
+          height: 100%;
+          pointer-events: none;
+          transform: scaleX(-1);
+        }
+
+        .trackingPolygon {
+          fill: rgba(117, 255, 180, 0.1);
+          stroke-width: 4px;
+          vector-effect: non-scaling-stroke;
+          stroke-linejoin: round;
+        }
+
+        .trackingPolygonGood {
+          stroke: rgba(117, 255, 180, 0.95);
+          fill: rgba(117, 255, 180, 0.1);
+        }
+
+        .trackingPolygonWarn {
+          stroke: rgba(255, 173, 66, 0.95);
+          fill: rgba(255, 173, 66, 0.08);
+        }
+
+        .trackingCorner {
+          fill: rgba(255, 255, 255, 0.98);
+          stroke: rgba(12, 17, 26, 0.7);
+          stroke-width: 2px;
+          vector-effect: non-scaling-stroke;
+        }
+
+        .trackingToolbar {
+          margin-top: 12px;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 10px;
         }
 
         .capturePreviewWrap {
