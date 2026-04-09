@@ -1,0 +1,100 @@
+{
+  "owner_defaults": {
+    "UI Agent": [
+      "frontend/app/components/**/*.js",
+      "frontend/app/**/*.js",
+      "frontend/**/*.css"
+    ],
+    "Logic Agent": [
+      "frontend/lib/**/*.js",
+      "frontend/app/**/*.js",
+      "*.py"
+    ],
+    "Vision Agent": [
+      "*.py",
+      "frontend/app/components/**/*Calibration*.js",
+      "frontend/app/components/**/*Camera*.js",
+      "frontend/app/components/**/*Overlay*.js",
+      "frontend/lib/**/*.js"
+    ],
+    "Test Agent": [
+      ".veridex/**/*.md",
+      "scripts/**/*.py",
+      "frontend/**/*.js"
+    ]
+  },
+  "task_rules": [
+    {
+      "task_id": "task-001",
+      "targets": [
+        "frontend/app/components/SignatureRevealCalibrationScreen.js",
+        "frontend/app/components/OverlayCalibrationScreen.js",
+        "*.py"
+      ]
+    },
+    {
+      "task_id": "task-002",
+      "targets": [
+        "frontend/app/components/*Calibration*.js",
+        "frontend/app/components/ClassroomScreen.js",
+        "frontend/lib/**/*.js"
+      ]
+    },
+    {
+      "task_id": "task-003",
+      "targets": [
+        "frontend/lib/**/*.js",
+        "frontend/app/components/**/*Overlay*.js",
+        "*.py"
+      ]
+    },
+    {
+      "task_id": "task-004",
+      "targets": [
+        "frontend/app/components/**/*Overlay*.js",
+        "frontend/app/components/*Calibration*.js"
+      ]
+    },
+    {
+      "task_id": "task-005",
+      "targets": [
+        "frontend/app/components/SignatureRevealCalibrationScreen.js",
+        "frontend/app/components/OverlayCalibrationScreen.js",
+        "*.py"
+      ]
+    },
+    {
+      "task_id": "task-006",
+      "targets": [
+        "frontend/app/components/**/*Camera*.js",
+        "frontend/app/components/**/*Calibration*.js",
+        "frontend/lib/**/*.js",
+        "*.py"
+      ]
+    },
+    {
+      "task_id": "task-007",
+      "targets": [
+        "frontend/app/components/*Calibration*.js",
+        "frontend/app/components/**/*.js",
+        "frontend/**/*.css"
+      ]
+    },
+    {
+      "task_id": "task-008",
+      "targets": [
+        "frontend/lib/**/*.js",
+        "*.py",
+        "frontend/app/components/*Calibration*.js"
+      ]
+    },
+    {
+      "task_id": "task-009",
+      "targets": [
+        "frontend/lib/**/*.js",
+        "frontend/app/components/**/*Overlay*.js",
+        "frontend/app/components/**/*Calibration*.js"
+      ]
+    }
+  ]
+}

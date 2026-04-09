@@ -3,6 +3,9 @@
 Status: Pending
 
 Assigned By: Navigator
+Owner: UI Agent
+Support: Logic Agent, Vision Agent
+Priority: High
 Assigned To: UI Agent, Logic Agent, Vision Agent
 
 ## Goal

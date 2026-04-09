@@ -2,8 +2,8 @@
 
 Status: In Progress
 
-Owner: UI Agent
-Support: Logic Agent, Vision Agent
+Owner: Vision Agent
+Support: Logic Agent, UI Agent
 Priority: High
 
 Assigned By: Navigator  

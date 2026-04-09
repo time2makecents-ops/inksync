@@ -4,7 +4,7 @@ Owner: UI Agent
 Support: None
 
 Priority: Medium
-Status: Pending
+Status: In Progress
 
 Assigned By: Navigator
 Assigned To: UI Agent
