@@ -24,6 +24,10 @@ const REVEAL_SPEED_STEP = 0.05;
 const REVEAL_MIN_SPEED = 0.05;
 const REVEAL_MAX_SPEED = 3;
 const REVEAL_VISIBILITY_STEP = 0.05;
+const SIGNATURE_IMAGE_ROTATION = 0;
+const SIGNATURE_IMAGE_SCALE = 0.9;
+const SIGNATURE_IMAGE_OFFSET_X = 0;
+const SIGNATURE_IMAGE_OFFSET_Y = 0;
 const TARGET_FRAME_OVERLAYS = {
   frame_08_0: {
     x: 370,
@@ -704,7 +708,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
                           opacity: isRevealRunning || revealProgress > 0 ? 0.96 : 0.05,
                           maskImage: signatureRevealMask,
                           WebkitMaskImage: signatureRevealMask,
-                          transform: "rotate(-90deg) scale(0.88)",
+                          transform: `translate(${SIGNATURE_IMAGE_OFFSET_X}%, ${SIGNATURE_IMAGE_OFFSET_Y}%) rotate(${SIGNATURE_IMAGE_ROTATION}deg) scale(${SIGNATURE_IMAGE_SCALE})`,
                         }}
                       />
                       {handlePositions.map((handle) => (
@@ -1259,3 +1263,5 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
     </div>
   );
 }
+
+

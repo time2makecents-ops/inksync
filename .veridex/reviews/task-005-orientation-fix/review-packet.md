@@ -13,7 +13,7 @@ Logic Agent
 Critical
 
 ## Status
-Pending
+In Progress
 
 ## Goal
 Fix overlay orientation mismatch
@@ -25,25 +25,17 @@ Fix overlay orientation mismatch
 - Maintain consistent transform logic
 
 ## Target Files
-- frontend/app/components/SignatureRevealCalibrationScreen.js
 - frontend/app/components/OverlayCalibrationScreen.js
-- calibrate.py
-- extract.py
-- main.py
-- overlay.py
-- frontend/app/components/CalibrationScreen.js
-- frontend/app/components/ClassroomCameraCard.js
-- frontend/app/components/RoomCoachOverlay.js
-- frontend/lib/api.js
+- frontend/app/components/SignatureRevealCalibrationScreen.js
 
 ## Execution Plan
 - Read the task file and current target files.
-- Confirm ownership, scope, and constraints before editing.
-- Produce a human review packet before code changes.
+- Compare intrinsic signature transforms between the two calibration screens.
+- Unify transform logic before touching broader camera or tracking code.
 
 ## Validation Checklist
 - Overlay matches card orientation
 - Signature remains aligned
 
 ## Notes
-None
+Narrowed to the two calibration screens for the first implementation pass.
