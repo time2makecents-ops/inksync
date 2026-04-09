@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   buildOverlayCalibrationSnapshot,
   buildSignatureRevealCalibrationSnapshot,
+  getStoredCalibrationSnapshot,
   getStoredOverlayCalibration,
   getStoredSignatureRevealCalibration,
   normalizeCardTransform,
@@ -94,6 +95,35 @@ function normalizeOverlay(overlay) {
   };
 }
 
+function buildTrackedOverlay(snapshot, sourceSize, fallbackOverlay) {
+  const metrics = snapshot?.metrics;
+  if (!metrics) {
+    return null;
+  }
+
+  const widthRatio = metrics.boxWidthRatio;
+  const heightRatio = metrics.boxHeightRatio;
+  const centerX = metrics.centerX;
+  const centerY = metrics.centerY;
+  if (!(widthRatio > 0) || !(heightRatio > 0)) {
+    return null;
+  }
+
+  const width = widthRatio * sourceSize.width;
+  const height = heightRatio * sourceSize.height;
+  const x = (centerX * sourceSize.width) - (width / 2);
+  const y = (centerY * sourceSize.height) - (height / 2);
+
+  return normalizeOverlay({
+    ...fallbackOverlay,
+    x,
+    y,
+    width,
+    height,
+    rotation: metrics.rotation,
+  });
+}
+
 export default function OverlayCalibrationScreen({ mode = "overlay" }) {
   const stageRef = useRef(null);
   const dragStateRef = useRef(null);
@@ -108,6 +138,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
   const [revealProgress, setRevealProgress] = useState(0);
   const [revealSpeed, setRevealSpeed] = useState(0.45);
   const [isRevealRunning, setIsRevealRunning] = useState(false);
+  const [trackingSnapshot, setTrackingSnapshot] = useState(null);
   const isRevealMode = mode === "reveal";
 
   useEffect(() => {
@@ -136,6 +167,8 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           );
           setOverlaysByFrame(normalizedFrames);
         }
+
+        setTrackingSnapshot(getStoredCalibrationSnapshot());
 
         try {
           const backupResponse = await fetch(
@@ -270,6 +303,10 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
   );
 
   const overlay = normalizeOverlay(overlaysByFrame[frameId] ?? DEFAULT_OVERLAY);
+  const trackedOverlay = useMemo(
+    () => buildTrackedOverlay(trackingSnapshot, sourceSize, overlay),
+    [overlay, sourceSize, trackingSnapshot]
+  );
   const cardGuide = useMemo(() => {
     if (!isRevealMode) {
       return null;
@@ -491,6 +528,15 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
       }
       return next;
     });
+  }
+
+  function applyTrackedReference() {
+    if (!trackedOverlay || isRevealMode) {
+      return;
+    }
+
+    updateOverlay(trackedOverlay);
+    setStatus("Applied the tracked card reference to the current overlay frame.");
   }
 
   function handlePointerDown(event) {
@@ -781,7 +827,21 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
                     </div>
                   ) : null}
                   {!isRevealMode ? (
-                    <div
+                    <>
+                      {trackedOverlay ? (
+                        <div
+                          className="trackedGuideBox"
+                          aria-hidden="true"
+                          style={{
+                            left: `${(trackedOverlay.x / sourceSize.width) * 100}%`,
+                            top: `${(trackedOverlay.y / sourceSize.height) * 100}%`,
+                            width: `${(trackedOverlay.width / sourceSize.width) * 100}%`,
+                            height: `${(trackedOverlay.height / sourceSize.height) * 100}%`,
+                            transform: `rotate(${trackedOverlay.rotation}deg)`,
+                          }}
+                        />
+                      ) : null}
+                      <div
                       className="overlayBox"
                       onPointerDown={beginMove}
                       onPointerMove={handlePointerMove}
@@ -825,7 +885,8 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
                           aria-label="Rotate overlay"
                         />
                       ) : null}
-                    </div>
+                      </div>
+                    </>
                   ) : null}
                 </div>
               </div>
@@ -904,6 +965,22 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
             <button type="button" className="secondaryButton" onClick={resetCurrentFrame}>Reset Frame</button>
             <button type="button" className="secondaryButton" onClick={copyToAllFrames}>Copy To All</button>
           </div>
+          {!isRevealMode ? (
+            <div className="trackingPanel">
+              <div className="trackingPanelHeader">
+                <strong>Tracking Reference</strong>
+                <span>{trackingSnapshot?.tracking?.locked ? "Locked" : trackedOverlay ? "Live" : "Missing"}</span>
+              </div>
+              <p className="note">
+                {trackedOverlay
+                  ? "Use the saved calibration tracking transform as a guide, then apply it to the current overlay frame when the alignment looks correct."
+                  : "Save a calibration snapshot with visible card tracking first to attach the overlay to a tracked card reference."}
+              </p>
+              <button type="button" className="secondaryButton" onClick={applyTrackedReference} disabled={!trackedOverlay}>
+                Apply Tracking Reference
+              </button>
+            </div>
+          ) : null}
 
           <div className="readout">
             <div><strong>Frame:</strong> {currentFrame?.label ?? "None"}</div>
@@ -913,6 +990,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
             <div><strong>Height:</strong> {overlay.height}px</div>
             <div><strong>Rotation:</strong> {overlay.rotation}deg</div>
             <div><strong>Step:</strong> {stepSize}px</div>
+            <div><strong>Tracked:</strong> {trackedOverlay ? `${trackedOverlay.width.toFixed(1)} x ${trackedOverlay.height.toFixed(1)} px` : "None"}</div>
           </div>
 
           <div className="note">
@@ -1117,6 +1195,17 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           transform-origin: top left;
         }
 
+        .trackedGuideBox {
+          position: absolute;
+          box-sizing: border-box;
+          border: 2px dashed rgba(59, 130, 246, 0.92);
+          border-radius: 12px;
+          background: rgba(59, 130, 246, 0.06);
+          pointer-events: none;
+          z-index: 1;
+          transform-origin: center;
+        }
+
         .signatureStageLayer {
           position: absolute;
           box-sizing: border-box;
@@ -1308,6 +1397,24 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 10px;
+        }
+
+        .trackingPanel {
+          display: grid;
+          gap: 10px;
+          padding: 14px;
+          border-radius: 16px;
+          background: #eef4ff;
+          border: 1px solid rgba(59, 130, 246, 0.18);
+        }
+
+        .trackingPanelHeader {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          font-size: 14px;
+          color: #1d4ed8;
         }
 
         .readout {

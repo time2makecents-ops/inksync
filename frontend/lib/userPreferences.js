@@ -71,6 +71,10 @@ export function normalizeCalibrationMetrics(value) {
       motion: 0,
       areaRatio: 0,
       aspectRatio: 0,
+      centerX: 0,
+      centerY: 0,
+      boxWidthRatio: 0,
+      boxHeightRatio: 0,
       rotation: 0,
       confidence: 0,
     };
@@ -82,6 +86,10 @@ export function normalizeCalibrationMetrics(value) {
     motion: normalizeNumber(value.motion),
     areaRatio: normalizeNumber(value.areaRatio),
     aspectRatio: normalizeNumber(value.aspectRatio),
+    centerX: normalizeNumber(value.centerX),
+    centerY: normalizeNumber(value.centerY),
+    boxWidthRatio: normalizeNumber(value.boxWidthRatio),
+    boxHeightRatio: normalizeNumber(value.boxHeightRatio),
     rotation: normalizeNumber(value.rotation),
     confidence: normalizeNumber(value.confidence),
   };

@@ -19,13 +19,16 @@ In Progress
 Implement card tracking system to maintain overlay alignment.
 
 ## Current Slice
-First pass is limited to the live calibration surface:
+Current slices:
 
 - detect a live card polygon from the camera feed
 - estimate corner points
 - estimate rotation
 - estimate scale change against a locked reference
 - expose tracking state and lock or unlock controls
+- preserve enough tracked transform data in the calibration snapshot to drive later screens
+- expose the tracked card reference on the overlay calibration screen
+- allow the overlay calibration screen to apply the tracked reference as a starting transform
 
 This pass does not yet attach the production overlay to the tracked transform.
 
@@ -52,6 +55,7 @@ This pass does not yet attach the production overlay to the tracked transform.
 - Overlay stays aligned during movement
 - Signature stays attached to card
 - No drift during motion
+- Overlay calibration screen can load and apply the tracked reference baseline
 
 ## Notes
-None
+This pass still stops short of live production overlay attachment. It establishes a tracked baseline that later slices can drive continuously.
