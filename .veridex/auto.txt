@@ -1,0 +1,12 @@
+{
+  "version": "1.0",
+  "workspace_name": "Veridex Automation v1",
+  "active_tasks_file": ".veridex/agents/ACTIVE_TASKS.md",
+  "tasks_dir": ".veridex/tasks",
+  "reviews_dir": ".veridex/reviews",
+  "worklog_file": ".veridex/worklog.ndjson",
+  "file_targeting_file": ".veridex/config/file-targeting.json",
+  "default_status_on_run": "In Progress",
+  "allowed_statuses": ["Pending", "In Progress", "Review", "Complete"],
+  "max_target_files": 10
+}
