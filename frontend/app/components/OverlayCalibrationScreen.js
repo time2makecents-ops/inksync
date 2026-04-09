@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  buildTrackedCardTransformFromSnapshot,
   buildOverlayCalibrationSnapshot,
   buildSignatureRevealCalibrationSnapshot,
   getStoredCalibrationSnapshot,
@@ -93,35 +94,6 @@ function normalizeOverlay(overlay) {
         : Math.round(width / SOURCE_ASPECT_RATIO),
     rotation: typeof overlay?.rotation === "number" ? overlay.rotation : DEFAULT_OVERLAY.rotation,
   };
-}
-
-function buildTrackedOverlay(snapshot, sourceSize, fallbackOverlay) {
-  const metrics = snapshot?.metrics;
-  if (!metrics) {
-    return null;
-  }
-
-  const widthRatio = metrics.boxWidthRatio;
-  const heightRatio = metrics.boxHeightRatio;
-  const centerX = metrics.centerX;
-  const centerY = metrics.centerY;
-  if (!(widthRatio > 0) || !(heightRatio > 0)) {
-    return null;
-  }
-
-  const width = widthRatio * sourceSize.width;
-  const height = heightRatio * sourceSize.height;
-  const x = (centerX * sourceSize.width) - (width / 2);
-  const y = (centerY * sourceSize.height) - (height / 2);
-
-  return normalizeOverlay({
-    ...fallbackOverlay,
-    x,
-    y,
-    width,
-    height,
-    rotation: metrics.rotation,
-  });
 }
 
 export default function OverlayCalibrationScreen({ mode = "overlay" }) {
@@ -304,7 +276,10 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
 
   const overlay = normalizeOverlay(overlaysByFrame[frameId] ?? DEFAULT_OVERLAY);
   const trackedOverlay = useMemo(
-    () => buildTrackedOverlay(trackingSnapshot, sourceSize, overlay),
+    () => {
+      const tracked = buildTrackedCardTransformFromSnapshot(trackingSnapshot, sourceSize, overlay);
+      return tracked ? normalizeOverlay(tracked) : null;
+    },
     [overlay, sourceSize, trackingSnapshot]
   );
   const cardGuide = useMemo(() => {

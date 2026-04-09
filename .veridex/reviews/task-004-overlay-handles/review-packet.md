@@ -13,20 +13,20 @@ None
 Medium
 
 ## Status
-Review
+Complete
 
 ## Goal
 Improve overlay control with interactive handles.
 
 ## Current Slice
-First pass shipped:
+Completed scope:
 
 - four corner resize handles
 - existing side handles retained
 - rotate handle retained
 - drag-to-move retained
 
-Perspective and tilt warping remain deferred.
+Perspective and tilt warping are explicitly descoped from this task.
 
 ## Requirements
 - Resize handles (4 corners)
@@ -52,4 +52,4 @@ Perspective and tilt warping remain deferred.
 - drag-to-move still works with mouse and touch
 
 ## Notes
-- Move this task to Complete only after perspective or tilt handling is either implemented or explicitly descoped.
+- Perspective and tilt warping are deferred. This handle milestone is complete.

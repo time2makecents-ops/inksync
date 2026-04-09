@@ -158,6 +158,41 @@ export function buildSignatureRevealCalibrationSnapshot(value, fallbackTransform
   return buildFrameSnapshot(value, fallbackTransform);
 }
 
+export function buildTrackedCardTransformFromSnapshot(snapshot, sourceSize, fallbackTransform = DEFAULT_CARD_TRANSFORM) {
+  const metrics = snapshot?.metrics;
+  if (!metrics || !sourceSize) {
+    return null;
+  }
+
+  const widthRatio = normalizeNumber(metrics.boxWidthRatio);
+  const heightRatio = normalizeNumber(metrics.boxHeightRatio);
+  const centerX = normalizeNumber(metrics.centerX);
+  const centerY = normalizeNumber(metrics.centerY);
+  const sourceWidth = normalizeNumber(sourceSize.width);
+  const sourceHeight = normalizeNumber(sourceSize.height);
+
+  if (!(widthRatio > 0) || !(heightRatio > 0) || !(sourceWidth > 0) || !(sourceHeight > 0)) {
+    return null;
+  }
+
+  const width = widthRatio * sourceWidth;
+  const height = heightRatio * sourceHeight;
+  const x = (centerX * sourceWidth) - (width / 2);
+  const y = (centerY * sourceHeight) - (height / 2);
+
+  return normalizeCardTransform(
+    {
+      ...fallbackTransform,
+      x,
+      y,
+      width,
+      height,
+      rotation: normalizeNumber(metrics.rotation),
+    },
+    fallbackTransform
+  );
+}
+
 function readStoredJson(storageKey) {
   if (typeof window === "undefined") {
     return null;

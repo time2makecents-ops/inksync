@@ -3,7 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  buildTrackedCardTransformFromSnapshot,
   buildSignatureRevealCalibrationSnapshot,
+  getStoredCalibrationSnapshot,
   getStoredSignatureRevealCalibration,
   normalizeCardTransform,
   setStoredSignatureRevealCalibration,
@@ -103,6 +105,7 @@ export default function SignatureRevealCalibrationScreen() {
   const [revealProgress, setRevealProgress] = useState(0);
   const [revealSpeed, setRevealSpeed] = useState(0.45);
   const [isRevealRunning, setIsRevealRunning] = useState(false);
+  const [trackingSnapshot, setTrackingSnapshot] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,6 +146,7 @@ export default function SignatureRevealCalibrationScreen() {
           loadedGuides = {};
         }
         setGuideByFrame((current) => ({ ...loadedGuides, ...current }));
+        setTrackingSnapshot(getStoredCalibrationSnapshot());
 
         let loadedSignature = {};
         const storedSignature = getStoredSignatureRevealCalibration();
@@ -254,6 +258,10 @@ export default function SignatureRevealCalibrationScreen() {
   const guide = useMemo(() => {
     return normalizeBox(guideByFrame[frameId] ?? DEFAULT_GUIDE, DEFAULT_GUIDE);
   }, [frameId, guideByFrame]);
+  const trackedGuide = useMemo(() => {
+    const tracked = buildTrackedCardTransformFromSnapshot(trackingSnapshot, sourceSize, guide);
+    return tracked ? normalizeBox(tracked, DEFAULT_GUIDE) : null;
+  }, [guide, sourceSize, trackingSnapshot]);
 
   const signature = normalizeBox(signatureByFrame[frameId] ?? DEFAULT_SIGNATURE);
   const signatureMask = `linear-gradient(90deg, rgba(0, 0, 0, 1) ${Math.max(
@@ -319,6 +327,19 @@ export default function SignatureRevealCalibrationScreen() {
       }
       return next;
     });
+  }
+
+  function applyTrackedGuide() {
+    if (!trackedGuide) {
+      return;
+    }
+
+    setGuideByFrame((current) => ({
+      ...current,
+      [frameId]: trackedGuide,
+    }));
+    setShowGuide(true);
+    setStatus("Applied the tracked card reference to the current guide frame.");
   }
 
   function adjustZoom(delta) {
@@ -463,6 +484,19 @@ export default function SignatureRevealCalibrationScreen() {
                       }}
                     />
                   ) : null}
+                  {trackedGuide ? (
+                    <div
+                      className="trackedGuideBox"
+                      aria-hidden="true"
+                      style={{
+                        left: `${(trackedGuide.x / sourceSize.width) * 100}%`,
+                        top: `${(trackedGuide.y / sourceSize.height) * 100}%`,
+                        width: `${(trackedGuide.width / sourceSize.width) * 100}%`,
+                        height: `${(trackedGuide.height / sourceSize.height) * 100}%`,
+                        transform: `rotate(${trackedGuide.rotation}deg)`,
+                      }}
+                    />
+                  ) : null}
 
                   <div
                     className="signatureBox"
@@ -568,6 +602,20 @@ export default function SignatureRevealCalibrationScreen() {
             <button type="button" className="secondaryButton" onClick={resetCurrentFrame}>Reset Frame</button>
             <button type="button" className="secondaryButton" onClick={copyCurrentToAllFrames}>Copy To All</button>
           </div>
+          <div className="trackingPanel">
+            <div className="trackingPanelHeader">
+              <strong>Tracking Reference</strong>
+              <span>{trackingSnapshot?.tracking?.locked ? "Locked" : trackedGuide ? "Live" : "Missing"}</span>
+            </div>
+            <div className="note">
+              {trackedGuide
+                ? "The tracked card reference can be overlaid as a blue guide and applied to the current frame before you tune the signature reveal."
+                : "Save a calibration snapshot with visible card tracking first to pull the tracked card reference into this reveal screen."}
+            </div>
+            <button type="button" className="secondaryButton" onClick={applyTrackedGuide} disabled={!trackedGuide}>
+              Apply Tracking Guide
+            </button>
+          </div>
 
           <div className="readout">
             <div><strong>Frame:</strong> {currentFrame?.label ?? "None"}</div>
@@ -577,6 +625,7 @@ export default function SignatureRevealCalibrationScreen() {
             <div><strong>Height:</strong> {signature.height}px</div>
             <div><strong>Rotation:</strong> {signature.rotation}deg</div>
             <div><strong>Step:</strong> {stepSize}px</div>
+            <div><strong>Tracked Guide:</strong> {trackedGuide ? `${trackedGuide.width.toFixed(1)} x ${trackedGuide.height.toFixed(1)} px` : "None"}</div>
           </div>
 
           <div className="note">
@@ -761,6 +810,17 @@ export default function SignatureRevealCalibrationScreen() {
           transform-origin: center;
         }
 
+        .trackedGuideBox {
+          position: absolute;
+          box-sizing: border-box;
+          border: 2px dashed rgba(59, 130, 246, 0.92);
+          border-radius: 12px;
+          background: rgba(59, 130, 246, 0.06);
+          pointer-events: none;
+          z-index: 1;
+          transform-origin: center;
+        }
+
         .signatureBox {
           position: absolute;
           box-sizing: border-box;
@@ -876,6 +936,24 @@ export default function SignatureRevealCalibrationScreen() {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 10px;
+        }
+
+        .trackingPanel {
+          display: grid;
+          gap: 10px;
+          padding: 14px;
+          border-radius: 16px;
+          background: #eef4ff;
+          border: 1px solid rgba(59, 130, 246, 0.18);
+        }
+
+        .trackingPanelHeader {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          font-size: 14px;
+          color: #1d4ed8;
         }
 
         .readout {

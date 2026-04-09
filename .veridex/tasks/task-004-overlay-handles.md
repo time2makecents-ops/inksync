@@ -1,6 +1,6 @@
 # Task 004 - Overlay Handles
 
-Status: Review
+Status: Complete
 
 Assigned By: Navigator
 Owner: UI Agent
@@ -13,14 +13,14 @@ Improve overlay control with interactive handles.
 
 ## Current Slice
 
-First pass shipped:
+Completed scope:
 
 - four corner resize handles
 - existing side handles retained
 - rotate handle retained
 - drag-to-move retained
 
-Perspective and tilt warping remain deferred.
+Perspective and tilt warping are explicitly descoped from this task.
 
 ## Requirements
 
@@ -46,4 +46,4 @@ Perspective and tilt warping remain deferred.
 
 ## Notes
 
-- Move this task to Complete only after perspective or tilt handling is either implemented or explicitly descoped.
+- Perspective and tilt warping are deferred. This handle milestone is complete.

@@ -2,10 +2,6 @@
 
 ## Now
 
-Task 006 - Tracking Engine
-Owner: Vision Agent
-Priority: Critical
-
 Task 009 - Overlay Data Model
 Owner: Logic Agent
 Priority: Critical
@@ -33,9 +29,3 @@ Priority: Medium
 Task 001 - Signature Calibration
 Owner: Vision Agent
 Priority: High
-
-## Review
-
-Task 004 - Overlay Handles
-Owner: UI Agent
-Priority: Medium
