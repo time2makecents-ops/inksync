@@ -1,6 +1,6 @@
 # Task 005 - Orientation Fix
 
-Status: Review
+Status: Complete
 
 Assigned By: Navigator
 Owner: Vision Agent
@@ -35,4 +35,4 @@ Remaining follow-up:
 
 ## Notes
 
-- This task should only return to In Progress if tracking integration exposes a new orientation mismatch.
+- This task is complete for the current calibration surfaces. Reopen it only if tracking integration exposes a new orientation mismatch.

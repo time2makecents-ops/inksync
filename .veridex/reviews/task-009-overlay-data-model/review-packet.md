@@ -13,10 +13,19 @@ Vision Agent, UI Agent
 Critical
 
 ## Status
-Pending
+In Progress
 
 ## Goal
 Create the canonical data model for overlays, tracking state, signature references, and keyframes.
+
+## Current Slice
+First pass is focused on persistence normalization:
+
+- define a shared stored transform shape
+- normalize calibration, overlay, and signature snapshots through one schema layer
+- preserve compatibility with the existing local-storage keys
+
+This pass does not yet introduce keyframe persistence.
 
 ## Requirements
 - define card transform fields

@@ -1,6 +1,6 @@
 # Task 009 - Overlay Data Model
 
-Status: Pending
+Status: In Progress
 
 Assigned By: Navigator
 Owner: Logic Agent
@@ -10,6 +10,16 @@ Priority: Critical
 ## Goal
 
 Create the canonical data model for overlays, tracking state, signature references, and keyframes.
+
+## Current Slice
+
+First pass is focused on persistence normalization:
+
+- define a shared stored transform shape
+- normalize calibration, overlay, and signature snapshots through one schema layer
+- preserve compatibility with the existing local-storage keys
+
+This pass does not yet introduce keyframe persistence.
 
 ## Requirements
 

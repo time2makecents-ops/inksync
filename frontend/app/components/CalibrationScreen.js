@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import {
+  buildCalibrationSnapshot,
   getStoredCalibrationSnapshot,
   setStoredCalibrationSnapshot,
 } from "../../lib/userPreferences";
@@ -578,7 +579,7 @@ export default function CalibrationScreen() {
   }
 
   function saveSnapshot() {
-    const nextSnapshot = {
+    const nextSnapshot = buildCalibrationSnapshot({
       savedAt: new Date().toISOString(),
       metrics: {
         brightness: Number(formatNumber(metrics.brightness)),
@@ -596,11 +597,11 @@ export default function CalibrationScreen() {
           }
         : {
             locked: false,
-          },
+      },
       guidance,
       capturedPhoto,
       captureReview,
-    };
+    });
     setStoredCalibrationSnapshot(nextSnapshot);
     setSnapshot(nextSnapshot);
   }

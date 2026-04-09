@@ -3,6 +3,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  buildSignatureRevealCalibrationSnapshot,
+  getStoredSignatureRevealCalibration,
+  normalizeCardTransform,
   setStoredSignatureRevealCalibration,
 } from "../../lib/userPreferences";
 
@@ -142,6 +145,16 @@ export default function SignatureRevealCalibrationScreen() {
         setGuideByFrame((current) => ({ ...loadedGuides, ...current }));
 
         let loadedSignature = {};
+        const storedSignature = getStoredSignatureRevealCalibration();
+        if (storedSignature?.frames && typeof storedSignature.frames === "object") {
+          loadedSignature = Object.fromEntries(
+            Object.entries(storedSignature.frames).map(([key, value]) => [
+              key,
+              normalizeBox(normalizeCardTransform(value, DEFAULT_SIGNATURE), DEFAULT_SIGNATURE),
+            ])
+          );
+        }
+
         try {
           const signatureResponse = await fetch("/api/signature-reveal-calibration-backup", {
             cache: "no-store",
@@ -185,14 +198,14 @@ export default function SignatureRevealCalibrationScreen() {
       return;
     }
 
-    const snapshot = {
+    const snapshot = buildSignatureRevealCalibrationSnapshot({
       sourceWidth: sourceSize.width,
       sourceHeight: sourceSize.height,
       activeFrame: frameId,
       frameOverlay: normalizeBox(signatureByFrame[frameId] ?? DEFAULT_SIGNATURE),
       frames: signatureByFrame,
       updatedAt: new Date().toISOString(),
-    };
+    }, DEFAULT_SIGNATURE);
 
     setStoredSignatureRevealCalibration(snapshot);
 

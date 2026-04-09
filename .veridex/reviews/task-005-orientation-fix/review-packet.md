@@ -13,7 +13,7 @@ Logic Agent
 Critical
 
 ## Status
-Review
+Complete
 
 ## Goal
 Fix overlay orientation mismatch.
@@ -48,4 +48,4 @@ Remaining follow-up:
 - signature remains aligned in the reveal calibration flow
 
 ## Notes
-- This task should only return to In Progress if tracking integration exposes a new orientation mismatch.
+- This task is complete for the current calibration surfaces. Reopen it only if tracking integration exposes a new orientation mismatch.

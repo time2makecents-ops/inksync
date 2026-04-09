@@ -3,8 +3,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+  buildOverlayCalibrationSnapshot,
+  buildSignatureRevealCalibrationSnapshot,
   getStoredOverlayCalibration,
   getStoredSignatureRevealCalibration,
+  normalizeCardTransform,
   setStoredOverlayCalibration,
   setStoredSignatureRevealCalibration,
 } from "../../lib/userPreferences";
@@ -129,7 +132,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           : getStoredOverlayCalibration();
         if (stored?.frames && typeof stored.frames === "object") {
           const normalizedFrames = Object.fromEntries(
-            Object.entries(stored.frames).map(([key, value]) => [key, normalizeOverlay(value)])
+            Object.entries(stored.frames).map(([key, value]) => [key, normalizeOverlay(normalizeCardTransform(value, DEFAULT_OVERLAY))])
           );
           setOverlaysByFrame(normalizedFrames);
         }
@@ -202,12 +205,17 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
       return;
     }
 
-    const snapshot = {
+    const snapshotBuilder = isRevealMode
+      ? buildSignatureRevealCalibrationSnapshot
+      : buildOverlayCalibrationSnapshot;
+    const snapshot = snapshotBuilder({
       sourceWidth: sourceSize.width,
       sourceHeight: sourceSize.height,
+      activeFrame: frameId,
+      frameOverlay: normalizeOverlay(overlaysByFrame[frameId] ?? DEFAULT_OVERLAY),
       frames: overlaysByFrame,
       updatedAt: new Date().toISOString(),
-    };
+    }, DEFAULT_OVERLAY);
 
     if (isRevealMode) {
       setStoredSignatureRevealCalibration(snapshot);
