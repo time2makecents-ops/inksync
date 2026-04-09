@@ -1,6 +1,6 @@
 # Active Tasks
 
-## Later
+## Complete
 
 Task 007 - Calibration UI Redesign
 Owner: UI Agent

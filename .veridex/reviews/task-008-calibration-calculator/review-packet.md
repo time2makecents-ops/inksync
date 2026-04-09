@@ -13,7 +13,7 @@ UI Agent
 Medium
 
 ## Status
-Pending
+Complete
 
 ## Goal
 Add calibration calculator tools that help convert card, overlay, and transform measurements into repeatable adjustments.
@@ -31,10 +31,11 @@ Add calibration calculator tools that help convert card, overlay, and transform 
 - align all formulas with the task-009 data model
 
 ## Target Files
-- frontend/app/components/CalibrationScreen.js
+- frontend/app/components/CalibrationCalculatorPanel.js
+- frontend/app/components/UnifiedCalibrationScreen.js
 - frontend/app/components/OverlayCalibrationScreen.js
-- frontend/lib/api.js
 - frontend/lib/userPreferences.js
+- frontend/app/components/CalibrationScreen.js
 
 ## Execution Plan
 - Confirm task scope against the goal, requirements, and constraints.
@@ -48,4 +49,4 @@ Add calibration calculator tools that help convert card, overlay, and transform 
 - values persist when persistence is expected
 
 ## Notes
-- This task should consume transform primitives from the shared overlay data model instead of inventing its own shape.
+- Completed with a local persistent calculator panel that consumes the shared transform primitives, computes scale, aspect, and rotation helpers, and can apply values back into the active overlay frame without a page reload.

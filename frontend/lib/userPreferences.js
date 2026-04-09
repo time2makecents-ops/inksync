@@ -4,7 +4,9 @@ export const PROFILE_PHOTO_STORAGE_KEY = "flipperiq-profile-photo";
 export const CALIBRATION_SNAPSHOT_STORAGE_KEY = "inksync-calibration-snapshot";
 export const OVERLAY_CALIBRATION_STORAGE_KEY = "inksync-overlay-calibration";
 export const SIGNATURE_REVEAL_CALIBRATION_STORAGE_KEY = "inksync-signature-reveal-calibration";
+export const CALIBRATION_CALCULATOR_STORAGE_KEY = "inksync-calibration-calculator";
 export const INKSYNC_DATA_MODEL_VERSION = 1;
+const STORAGE_EVENT_PREFIX = "inksync:storage:";
 
 const DEFAULT_CARD_TRANSFORM = Object.freeze({
   x: 0,
@@ -227,10 +229,58 @@ function writeStoredJson(storageKey, value) {
 
   if (!value) {
     window.localStorage.removeItem(storageKey);
+    window.dispatchEvent(
+      new CustomEvent(`${STORAGE_EVENT_PREFIX}${storageKey}`, {
+        detail: null,
+      })
+    );
     return;
   }
 
   window.localStorage.setItem(storageKey, JSON.stringify(value));
+  window.dispatchEvent(
+    new CustomEvent(`${STORAGE_EVENT_PREFIX}${storageKey}`, {
+      detail: value,
+    })
+  );
+}
+
+export function subscribeToStoredJson(storageKey, listener) {
+  if (typeof window === "undefined") {
+    return () => {};
+  }
+
+  const eventName = `${STORAGE_EVENT_PREFIX}${storageKey}`;
+  const handleEvent = (event) => {
+    listener(event.detail ?? null);
+  };
+
+  window.addEventListener(eventName, handleEvent);
+  return () => {
+    window.removeEventListener(eventName, handleEvent);
+  };
+}
+
+function normalizeCalculatorState(value) {
+  if (!value || typeof value !== "object") {
+    return {
+      cardWidth: 0,
+      cardHeight: 0,
+      overlayWidth: 0,
+      overlayHeight: 0,
+      cardRotation: 0,
+      overlayRotation: 0,
+    };
+  }
+
+  return {
+    cardWidth: normalizeNumber(value.cardWidth),
+    cardHeight: normalizeNumber(value.cardHeight),
+    overlayWidth: normalizeNumber(value.overlayWidth),
+    overlayHeight: normalizeNumber(value.overlayHeight),
+    cardRotation: normalizeNumber(value.cardRotation),
+    overlayRotation: normalizeNumber(value.overlayRotation),
+  };
 }
 
 export function getStoredHandedness() {
@@ -313,5 +363,17 @@ export function setStoredSignatureRevealCalibration(value) {
   writeStoredJson(
     SIGNATURE_REVEAL_CALIBRATION_STORAGE_KEY,
     value ? buildSignatureRevealCalibrationSnapshot(value) : null
+  );
+}
+
+export function getStoredCalibrationCalculator() {
+  const parsed = readStoredJson(CALIBRATION_CALCULATOR_STORAGE_KEY);
+  return normalizeCalculatorState(parsed);
+}
+
+export function setStoredCalibrationCalculator(value) {
+  writeStoredJson(
+    CALIBRATION_CALCULATOR_STORAGE_KEY,
+    value ? normalizeCalculatorState(value) : null
   );
 }

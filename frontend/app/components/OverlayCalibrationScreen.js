@@ -10,8 +10,10 @@ import {
   getStoredOverlayCalibration,
   getStoredSignatureRevealCalibration,
   normalizeCardTransform,
+  OVERLAY_CALIBRATION_STORAGE_KEY,
   setStoredOverlayCalibration,
   setStoredSignatureRevealCalibration,
+  subscribeToStoredJson,
 } from "../../lib/userPreferences";
 
 const SOURCE_ASPECT_RATIO = 612 / 465;
@@ -122,6 +124,7 @@ function interpolateOverlay(startOverlay, endOverlay, progress) {
 export default function OverlayCalibrationScreen({ mode = "overlay" }) {
   const stageRef = useRef(null);
   const dragStateRef = useRef(null);
+  const overlaySnapshotRef = useRef("");
   const [frames, setFrames] = useState([]);
   const [frameId, setFrameId] = useState(DEFAULT_FRAME_ID);
   const [sourceSize, setSourceSize] = useState({ width: 1080, height: 1920 });
@@ -249,6 +252,17 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
       keyframes: keyframeIds,
       updatedAt: new Date().toISOString(),
     }, DEFAULT_OVERLAY);
+    const snapshotKey = JSON.stringify({
+      activeFrame: snapshot.activeFrame,
+      frames: snapshot.frames,
+      keyframes: snapshot.keyframes,
+      sourceWidth: snapshot.sourceWidth,
+      sourceHeight: snapshot.sourceHeight,
+    });
+    if (overlaySnapshotRef.current === snapshotKey) {
+      return;
+    }
+    overlaySnapshotRef.current = snapshotKey;
 
     if (isRevealMode) {
       setStoredSignatureRevealCalibration(snapshot);
@@ -264,6 +278,42 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
       body: JSON.stringify(snapshot),
     }).catch(() => {});
   }, [frameId, isRevealMode, keyframeIds, overlaysByFrame, sourceSize.height, sourceSize.width]);
+
+  useEffect(() => {
+    if (isRevealMode) {
+      return undefined;
+    }
+
+    return subscribeToStoredJson(OVERLAY_CALIBRATION_STORAGE_KEY, (value) => {
+      if (!value?.frames || typeof value.frames !== "object") {
+        return;
+      }
+      const snapshotKey = JSON.stringify({
+        activeFrame: value.activeFrame,
+        frames: value.frames,
+        keyframes: value.keyframes,
+        sourceWidth: value.sourceWidth,
+        sourceHeight: value.sourceHeight,
+      });
+      if (overlaySnapshotRef.current === snapshotKey) {
+        return;
+      }
+      overlaySnapshotRef.current = snapshotKey;
+
+      const normalizedFrames = Object.fromEntries(
+        Object.entries(value.frames).map(([key, entry]) => [
+          key,
+          normalizeOverlay(normalizeCardTransform(entry, DEFAULT_OVERLAY)),
+        ])
+      );
+
+      setOverlaysByFrame(normalizedFrames);
+      setKeyframeIds(Array.isArray(value.keyframes) ? value.keyframes : Object.keys(normalizedFrames));
+      if (typeof value.activeFrame === "string" && value.activeFrame) {
+        setFrameId(value.activeFrame);
+      }
+    });
+  }, [isRevealMode]);
 
   useEffect(() => {
     if (!isRevealMode || !isRevealRunning) {

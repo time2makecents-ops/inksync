@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import CalibrationCalculatorPanel from "./CalibrationCalculatorPanel";
 import CalibrationScreen from "./CalibrationScreen";
 import OverlayCalibrationScreen from "./OverlayCalibrationScreen";
 import SignatureRevealCalibrationScreen from "./SignatureRevealCalibrationScreen";
@@ -35,32 +36,60 @@ export default function UnifiedCalibrationScreen() {
     <div className="workspaceShell">
       <div className="workspacePanel">
         <header className="workspaceHero">
-          <div>
+          <div className="heroCopy">
             <div className="eyebrow">Unified Calibration</div>
             <h1>{currentView.title}</h1>
             <p>{currentView.detail}</p>
           </div>
-          <div className="workflowBadge">One route, staged workflow</div>
+          <div className="heroMeta">
+            <div className="workflowBadge">One route, staged workflow</div>
+            <div className="heroChecklist">
+              <span className={activeView === "camera" ? "heroChecklistActive" : ""}>Track</span>
+              <span className={activeView === "overlay" ? "heroChecklistActive" : ""}>Align</span>
+              <span className={activeView === "reveal" ? "heroChecklistActive" : ""}>Reveal</span>
+            </div>
+          </div>
         </header>
 
-        <nav className="workspaceTabs" aria-label="Calibration workflow">
-          {VIEWS.map((view) => (
-            <button
-              key={view.id}
-              type="button"
-              className={`workspaceTab ${view.id === activeView ? "workspaceTabActive" : ""}`}
-              onClick={() => setActiveView(view.id)}
-            >
-              {view.label}
-            </button>
-          ))}
-        </nav>
+        <div className="workspaceGrid">
+          <aside className="operatorRail">
+            <nav className="workspaceTabs" aria-label="Calibration workflow">
+              {VIEWS.map((view) => (
+                <button
+                  key={view.id}
+                  type="button"
+                  className={`workspaceTab ${view.id === activeView ? "workspaceTabActive" : ""}`}
+                  onClick={() => setActiveView(view.id)}
+                >
+                  <span className="workspaceTabStep">{view.label}</span>
+                  <span className="workspaceTabTitle">{view.title}</span>
+                </button>
+              ))}
+            </nav>
 
-        <section className="workspaceStage">
-          {activeView === "camera" ? <CalibrationScreen /> : null}
-          {activeView === "overlay" ? <OverlayCalibrationScreen /> : null}
-          {activeView === "reveal" ? <SignatureRevealCalibrationScreen /> : null}
-        </section>
+            <section className="workflowCard">
+              <div className="eyebrow">Operator View</div>
+              <h2>Keep the active screen focused</h2>
+              <p>
+                This shell keeps task switching, calculator tools, and workflow checkpoints above the fold while the
+                detailed controls stay inside each calibration stage.
+              </p>
+              <ul className="workflowList">
+                <li>Camera: lock the tracked card reference and save a snapshot.</li>
+                <li>Overlay: align keyframes, apply tracking, and correct size drift.</li>
+                <li>Reveal: tune the signature layer against the tracked guide.</li>
+              </ul>
+            </section>
+
+            <CalibrationCalculatorPanel />
+          </aside>
+
+          <section className="workspaceStage">
+            {activeView === "camera" ? <CalibrationScreen /> : null}
+            {activeView === "overlay" ? <OverlayCalibrationScreen /> : null}
+            {activeView === "reveal" ? <SignatureRevealCalibrationScreen /> : null}
+          </section>
+        </div>
       </div>
 
       <style jsx>{`
@@ -73,7 +102,7 @@ export default function UnifiedCalibrationScreen() {
         }
 
         .workspacePanel {
-          max-width: 1420px;
+          max-width: 1560px;
           margin: 0 auto;
           display: grid;
           gap: 16px;
@@ -89,6 +118,10 @@ export default function UnifiedCalibrationScreen() {
           background: rgba(255, 255, 255, 0.84);
           border: 1px solid rgba(148, 163, 184, 0.22);
           box-shadow: 0 18px 48px rgba(15, 23, 42, 0.08);
+        }
+
+        .heroCopy {
+          min-width: 0;
         }
 
         .eyebrow {
@@ -114,6 +147,12 @@ export default function UnifiedCalibrationScreen() {
           line-height: 1.5;
         }
 
+        .heroMeta {
+          display: grid;
+          gap: 10px;
+          align-content: start;
+        }
+
         .workflowBadge {
           padding: 12px 16px;
           border-radius: 999px;
@@ -123,21 +162,59 @@ export default function UnifiedCalibrationScreen() {
           white-space: nowrap;
         }
 
-        .workspaceTabs {
+        .heroChecklist {
           display: flex;
+          justify-content: flex-end;
           flex-wrap: wrap;
+          gap: 8px;
+        }
+
+        .heroChecklist span {
+          padding: 8px 12px;
+          border-radius: 999px;
+          background: rgba(16, 35, 59, 0.09);
+          color: #475467;
+          font-size: 12px;
+          font-weight: 800;
+          letter-spacing: 0.06em;
+          text-transform: uppercase;
+        }
+
+        .heroChecklistActive {
+          background: #dbeafe;
+          color: #1d4ed8;
+        }
+
+        .workspaceGrid {
+          display: grid;
+          grid-template-columns: 360px minmax(0, 1fr);
+          gap: 16px;
+          align-items: start;
+        }
+
+        .operatorRail {
+          position: sticky;
+          top: 18px;
+          display: grid;
+          gap: 14px;
+        }
+
+        .workspaceTabs {
+          display: grid;
           gap: 10px;
-          padding: 0 4px;
         }
 
         .workspaceTab {
-          min-height: 42px;
-          padding: 0 16px;
+          min-height: 72px;
+          padding: 14px 16px;
           border: 0;
-          border-radius: 999px;
+          border-radius: 22px;
           background: rgba(16, 35, 59, 0.09);
           color: #10233b;
           font-weight: 800;
+          text-align: left;
+          display: grid;
+          gap: 4px;
         }
 
         .workspaceTabActive {
@@ -145,8 +222,60 @@ export default function UnifiedCalibrationScreen() {
           color: #fff;
         }
 
+        .workspaceTabStep {
+          font-size: 12px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .workspaceTabTitle {
+          font-size: 14px;
+          line-height: 1.35;
+        }
+
+        .workflowCard {
+          display: grid;
+          gap: 10px;
+          padding: 18px;
+          border-radius: 22px;
+          background: rgba(255, 255, 255, 0.86);
+          border: 1px solid rgba(148, 163, 184, 0.22);
+          box-shadow: 0 18px 42px rgba(15, 23, 42, 0.08);
+        }
+
+        h2 {
+          margin: 0;
+          font-size: 21px;
+          color: #10233b;
+        }
+
+        .workflowCard p {
+          font-size: 14px;
+        }
+
+        .workflowList {
+          margin: 0;
+          padding-left: 18px;
+          display: grid;
+          gap: 8px;
+          color: #475467;
+          font-size: 14px;
+          line-height: 1.45;
+        }
+
         .workspaceStage {
           border-radius: 28px;
+          min-width: 0;
+        }
+
+        @media (max-width: 1180px) {
+          .workspaceGrid {
+            grid-template-columns: 1fr;
+          }
+
+          .operatorRail {
+            position: static;
+          }
         }
 
         @media (max-width: 800px) {
@@ -164,6 +293,10 @@ export default function UnifiedCalibrationScreen() {
 
           .workflowBadge {
             white-space: normal;
+          }
+
+          .heroChecklist {
+            justify-content: start;
           }
         }
       `}</style>

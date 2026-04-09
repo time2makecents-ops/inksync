@@ -13,7 +13,7 @@ Logic Agent, Vision Agent
 High
 
 ## Status
-Pending
+Complete
 
 ## Goal
 Redesign the calibration workflow so the active controls are visible, dense, and usable on both desktop and mobile without long scrolling.
@@ -31,6 +31,7 @@ Redesign the calibration workflow so the active controls are visible, dense, and
 - optimize for phone ergonomics first, then desktop expansion
 
 ## Target Files
+- frontend/app/components/UnifiedCalibrationScreen.js
 - frontend/app/components/CalibrationScreen.js
 - frontend/app/components/OverlayCalibrationScreen.js
 - frontend/app/components/SignatureRevealCalibrationScreen.js
@@ -48,4 +49,4 @@ Redesign the calibration workflow so the active controls are visible, dense, and
 - the updated layout remains coherent with the rest of the InkSync UI
 
 ## Notes
-- This task should start after the data model and tracking surfaces are stable enough to design around.
+- Completed by consolidating the calibration workflow into a denser operator shell with a sticky stage rail, stage switching that stays above the fold, and a persistent calculator/tool panel that reduces workflow sprawl on phone and desktop.
