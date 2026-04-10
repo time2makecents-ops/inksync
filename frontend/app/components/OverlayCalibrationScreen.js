@@ -27,7 +27,7 @@ const MAX_ZOOM = 4;
 const ZOOM_STEP = 0.1;
 const MIN_OVERLAY_SIZE = 12;
 const HANDLE_GAP = 15;
-const ROTATE_HANDLE_GAP = 30;
+const ROTATE_HANDLE_GAP = 44;
 const HANDLE_SIZE = 12;
 const REVEAL_SPEED_STEP = 0.05;
 const REVEAL_MIN_SPEED = 0.05;
@@ -773,7 +773,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
     const dy = Math.round((event.clientY - startClientY) * scaleY);
 
     if (mode === "rotate") {
-      const deltaDegrees = (dragStateRef.current.startClientY - event.clientY) * 0.25;
+      const deltaDegrees = (event.clientY - dragStateRef.current.startClientY) * 0.25;
       updateOverlay((current) => ({
         ...current,
         rotation: Math.round((startRotation + deltaDegrees) * 100) / 100,
@@ -1093,9 +1093,9 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
                           type="button"
                           className="rotateHandle"
                           style={{
-                            right: `-${ROTATE_HANDLE_GAP}px`,
-                            top: "50%",
-                            transform: "translateY(-50%)",
+                            left: "50%",
+                            top: `-${ROTATE_HANDLE_GAP}px`,
+                            transform: "translate(-50%, -50%)",
                           }}
                           onPointerDown={beginRotate}
                           onPointerMove={handlePointerMove}
@@ -1430,9 +1430,11 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           width: min(100%, 430px);
           aspect-ratio: 1080 / 1920;
           overflow: auto;
+          -webkit-overflow-scrolling: touch;
           border-radius: 18px;
           background: #0f172a;
           box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+          touch-action: pan-x pan-y pinch-zoom;
         }
 
         .stage {
@@ -1440,7 +1442,7 @@ export default function OverlayCalibrationScreen({ mode = "overlay" }) {
           width: 100%;
           aspect-ratio: 1080 / 1920;
           overflow: hidden;
-          touch-action: none;
+          touch-action: pan-x pan-y pinch-zoom;
         }
 
         .referenceFrame {
