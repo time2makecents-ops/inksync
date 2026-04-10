@@ -567,7 +567,7 @@ function WorkflowStatus({ calibrationSnapshot, overlayCalibration, revealCalibra
       </div>
 
       <div className="chips">
-        <StatusChip label="Track" value={calibrationReady ? "READY" : "MISSING"} tone={calibrationReady ? "success" : "warn"} />
+        <StatusChip label="Track" value={calibrationReady ? "READY" : "OPTIONAL"} tone={calibrationReady ? "success" : "neutral"} />
         <StatusChip label="Overlay" value={overlayReady ? "READY" : "MISSING"} tone={overlayReady ? "success" : "warn"} />
         <StatusChip label="Reveal" value={revealReady ? "READY" : "MISSING"} tone={revealReady ? "success" : "warn"} />
       </div>
@@ -575,7 +575,7 @@ function WorkflowStatus({ calibrationSnapshot, overlayCalibration, revealCalibra
         <div className="readinessCopy">
           {calibrationReady
             ? `Tracking snapshot saved ${new Date(calibrationSnapshot.savedAt).toLocaleString()}.`
-            : "Open calibration and save a tracking snapshot before performance."}
+            : "Tracking is optional for the fake video setup flow. Save a snapshot only when you want live card assist."}
         </div>
         <div className="readinessCopy">
           {overlayReady && revealReady
@@ -708,7 +708,7 @@ function WorkspacePreview({ title, subtitle, imageSrc, fallback }) {
 function RunChecklist({ calibrationReady, overlayReady, revealReady, precheckResult, isArmed, pipelineState }) {
   const items = [
     {
-      label: "Tracking snapshot saved",
+      label: "Tracking snapshot saved (optional)",
       done: calibrationReady,
     },
     {
@@ -837,8 +837,16 @@ export default function InkSyncController() {
   const revealFrameIds = useMemo(() => Object.keys(revealCalibration?.frames ?? {}), [revealCalibration]);
   const captureCount = overlayFrameIds.length;
   const extractionConfidence = useMemo(
-    () => ((calibrationSnapshot?.captureReview?.score ?? 0) / 100),
-    [calibrationSnapshot]
+    () => {
+      if (calibrationSnapshot?.captureReview?.score) {
+        return (calibrationSnapshot.captureReview.score / 100);
+      }
+      if (overlayReady && revealReady) {
+        return 0.8;
+      }
+      return 0;
+    },
+    [calibrationSnapshot, overlayReady, revealReady]
   );
   const selectedOverlayFrameId = overlayFrameIds[selectedFrameIndex] ?? overlayCalibration?.activeFrame ?? "none";
   const selectedRevealFrameId = revealFrameIds[selectedFrameIndex] ?? revealCalibration?.activeFrame ?? "none";
@@ -940,7 +948,7 @@ export default function InkSyncController() {
   }
 
   function runLightingPrecheck() {
-    if (!calibrationReady) {
+    if (!overlayReady || !revealReady) {
       setPrecheckResult("NO");
       setPipelineState("error");
       return;
@@ -956,7 +964,7 @@ export default function InkSyncController() {
   }
 
   function armSystem() {
-    if (!calibrationReady || !overlayReady || !revealReady || precheckResult !== "YES") {
+    if (!overlayReady || !revealReady || precheckResult !== "YES") {
       setPipelineState("error");
       return;
     }

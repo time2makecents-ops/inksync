@@ -14,8 +14,6 @@ const TARGET_BOX = {
   centerY: 0.54,
   minArea: 0.12,
   maxArea: 0.34,
-  minAspect: 0.66,
-  maxAspect: 0.86,
 };
 
 const DEFAULT_METRICS = {
@@ -153,14 +151,6 @@ function summarizeGuidance(metrics) {
     };
   }
 
-  if (metrics.aspectRatio < TARGET_BOX.minAspect || metrics.aspectRatio > TARGET_BOX.maxAspect) {
-    return {
-      tone: "warning",
-      headline: "Hold the card flatter",
-      detail: "Reduce tilt so the card shape matches a straight-on playing card.",
-    };
-  }
-
   if (metrics.motion > 18) {
     return {
       tone: "warning",
@@ -240,10 +230,6 @@ function buildCaptureReview(metrics) {
     notes.push("Bring the card closer to the camera.");
   } else if (metrics.areaRatio > TARGET_BOX.maxArea) {
     notes.push("Lift the card slightly farther from the camera.");
-  }
-
-  if (metrics.aspectRatio < TARGET_BOX.minAspect || metrics.aspectRatio > TARGET_BOX.maxAspect) {
-    notes.push("Hold the card flatter to the phone.");
   }
 
   if (metrics.motion > 18) {
@@ -547,17 +533,15 @@ export default function CalibrationScreen() {
         )
       : 0;
     const areaScore = foundCard ? scoreBand(areaRatio, TARGET_BOX.minArea, TARGET_BOX.maxArea) : 0;
-    const aspectScore = foundCard ? scoreBand(aspectRatio, TARGET_BOX.minAspect, TARGET_BOX.maxAspect) : 0;
     const brightnessScore = scoreBand(brightness, 95, 205);
     const sharpnessScore = scoreBand(sharpness, 14, 48);
     const motionScore = 1 - clamp(motion / 22, 0, 1);
     const confidence = clamp(
       (positionScore * 0.28)
-      + (areaScore * 0.2)
-      + (aspectScore * 0.16)
-      + (brightnessScore * 0.14)
-      + (sharpnessScore * 0.14)
-      + (motionScore * 0.08),
+      + (areaScore * 0.26)
+      + (brightnessScore * 0.18)
+      + (sharpnessScore * 0.18)
+      + (motionScore * 0.10),
       0,
       1
     );

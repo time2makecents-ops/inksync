@@ -11,29 +11,29 @@ import { exportInkSyncWorkspace, importInkSyncWorkspace } from "../../lib/userPr
 
 const VIEWS = [
   {
-    id: "camera",
-    label: "1. Camera Track",
-    title: "Track the live card first",
-    detail: "Lock the tracked card reference and save a calibration snapshot before moving to overlay alignment.",
-  },
-  {
     id: "overlay",
-    label: "2. Overlay Align",
-    title: "Align the overlay against sampled frames",
-    detail: "Use tracked-reference guides and keyframes to shape the overlay across the reference frames.",
+    label: "1. Overlay Align",
+    title: "Calibrate the fake video overlay first",
+    detail: "Use the sampled reference frames, keyframes, and calculator tools to set the initial overlay alignment for the fake video workflow.",
   },
   {
     id: "reveal",
-    label: "3. Signature Reveal",
-    title: "Tune the reveal signature against the tracked guide",
-    detail: "Use the tracked card guide as the baseline before refining the signature reveal layer.",
+    label: "2. Signature Reveal",
+    title: "Tune the reveal layer for the fake video pass",
+    detail: "Refine the reveal signature against the saved guide and sampled frames after the overlay is aligned.",
+  },
+  {
+    id: "camera",
+    label: "3. Camera Track",
+    title: "Optional live tracking for real-card alignment",
+    detail: "Use the rear camera only when you want a live tracked card reference to help later overlay adjustments.",
   },
 ];
 
 export default function UnifiedCalibrationScreen() {
   const router = useRouter();
   const importInputRef = useRef(null);
-  const [activeView, setActiveView] = useState("camera");
+  const [activeView, setActiveView] = useState("overlay");
   const [workspaceStatus, setWorkspaceStatus] = useState("Export the current calibration workspace or import a saved bundle.");
   const currentView = VIEWS.find((view) => view.id === activeView) ?? VIEWS[0];
 
@@ -111,9 +111,9 @@ export default function UnifiedCalibrationScreen() {
                 detailed controls stay inside each calibration stage.
               </p>
               <ul className="workflowList">
-                <li>Camera: lock the tracked card reference and save a snapshot.</li>
-                <li>Overlay: align keyframes, apply tracking, and correct size drift.</li>
-                <li>Reveal: tune the signature layer against the tracked guide.</li>
+                <li>Overlay: calibrate the fake video alignment first.</li>
+                <li>Reveal: refine the signature layer for the saved frames.</li>
+                <li>Camera: optional live tracking helper for real-card alignment.</li>
               </ul>
             </section>
 
