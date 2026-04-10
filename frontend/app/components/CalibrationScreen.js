@@ -39,6 +39,11 @@ const DEFAULT_CAPTURE_REVIEW = {
   notes: [],
 };
 
+const BURST_FRAME_COUNT = 8;
+const BURST_FRAME_INTERVAL_MS = 140;
+const BURST_COUNTDOWN_SECONDS = 4;
+const DEFAULT_BUMP_THRESHOLD = 1.8;
+
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
@@ -59,6 +64,10 @@ function formatPercent(value) {
 
 function formatNumber(value) {
   return Number(value || 0).toFixed(1);
+}
+
+function formatPrecise(value) {
+  return Number(value || 0).toFixed(2);
 }
 
 function normalizeDegrees(angle) {
@@ -89,6 +98,22 @@ function buildTrackingCorners(centerX, centerY, widthRatio, heightRatio, rotatio
     x: clamp(centerX + (corner.x * cos) - (corner.y * sin), 0, 1),
     y: clamp(centerY + (corner.x * sin) + (corner.y * cos), 0, 1),
   }));
+}
+
+function snapshotMetrics(metrics) {
+  return {
+    brightness: Number(formatNumber(metrics.brightness)),
+    sharpness: Number(formatNumber(metrics.sharpness)),
+    motion: Number(formatNumber(metrics.motion)),
+    areaRatio: Number(formatNumber(metrics.areaRatio)),
+    aspectRatio: Number(formatNumber(metrics.aspectRatio)),
+    centerX: Number(formatNumber(metrics.centerX)),
+    centerY: Number(formatNumber(metrics.centerY)),
+    boxWidthRatio: Number(formatNumber(metrics.boxWidthRatio)),
+    boxHeightRatio: Number(formatNumber(metrics.boxHeightRatio)),
+    rotation: Number(formatNumber(metrics.rotation)),
+    confidence: Number(formatNumber(metrics.confidence * 100)),
+  };
 }
 
 function summarizeGuidance(metrics) {
@@ -261,10 +286,17 @@ export default function CalibrationScreen() {
   const canvasRef = useRef(null);
   const analysisTimerRef = useRef(null);
   const countdownTimerRef = useRef(null);
+  const burstTimerRef = useRef(null);
   const streamRef = useRef(null);
   const previousFrameRef = useRef(null);
   const trackingLockRef = useRef(null);
   const liveTrackingWriteRef = useRef(0);
+  const motionHandlerRef = useRef(null);
+  const gravityRef = useRef({ x: 0, y: 0, z: 0 });
+  const bumpTriggeredRef = useRef(false);
+  const metricsRef = useRef(DEFAULT_METRICS);
+  const waitingForBumpRef = useRef(false);
+  const bumpThresholdRef = useRef(DEFAULT_BUMP_THRESHOLD);
 
   const [cameraStatus, setCameraStatus] = useState("Camera is off.");
   const [permissionError, setPermissionError] = useState("");
@@ -277,6 +309,15 @@ export default function CalibrationScreen() {
   const [capturedPhoto, setCapturedPhoto] = useState("");
   const [captureReview, setCaptureReview] = useState(DEFAULT_CAPTURE_REVIEW);
   const [trackingLocked, setTrackingLocked] = useState(false);
+  const [burstFrames, setBurstFrames] = useState([]);
+  const [burstSession, setBurstSession] = useState(null);
+  const [burstSaveStatus, setBurstSaveStatus] = useState("No photoburst saved yet.");
+  const [triggerMode, setTriggerMode] = useState("timed");
+  const [waitingForBump, setWaitingForBump] = useState(false);
+  const [bumpEnabled, setBumpEnabled] = useState(false);
+  const [bumpPermissionStatus, setBumpPermissionStatus] = useState("not_enabled");
+  const [bumpThreshold, setBumpThreshold] = useState(DEFAULT_BUMP_THRESHOLD);
+  const [accelMagnitude, setAccelMagnitude] = useState(0);
 
   useEffect(() => {
     setSnapshot(getStoredCalibrationSnapshot());
@@ -291,6 +332,18 @@ export default function CalibrationScreen() {
 
   useEffect(() => () => stopCamera(), []);
 
+  useEffect(() => {
+    metricsRef.current = metrics;
+  }, [metrics]);
+
+  useEffect(() => {
+    waitingForBumpRef.current = waitingForBump;
+  }, [waitingForBump]);
+
+  useEffect(() => {
+    bumpThresholdRef.current = bumpThreshold;
+  }, [bumpThreshold]);
+
   function stopCamera() {
     if (analysisTimerRef.current) {
       window.clearInterval(analysisTimerRef.current);
@@ -302,19 +355,143 @@ export default function CalibrationScreen() {
       countdownTimerRef.current = null;
     }
 
+    if (burstTimerRef.current) {
+      window.clearTimeout(burstTimerRef.current);
+      burstTimerRef.current = null;
+    }
+
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
 
+    if (motionHandlerRef.current && typeof window !== "undefined") {
+      window.removeEventListener("devicemotion", motionHandlerRef.current);
+      motionHandlerRef.current = null;
+    }
+
     previousFrameRef.current = null;
     trackingLockRef.current = null;
     liveTrackingWriteRef.current = 0;
+    gravityRef.current = { x: 0, y: 0, z: 0 };
+    bumpTriggeredRef.current = false;
+    waitingForBumpRef.current = false;
     setStoredLiveTrackingSnapshot(null);
     setIsRunning(false);
     setCountdown(0);
     setTrackingLocked(false);
+    setWaitingForBump(false);
+    setBumpEnabled(false);
+    setBumpPermissionStatus("not_enabled");
+    setAccelMagnitude(0);
     setCameraStatus("Camera is off.");
+  }
+
+  async function requestMotionPermission() {
+    if (typeof window === "undefined") {
+      return "unsupported";
+    }
+
+    const motionCtor = window.DeviceMotionEvent;
+    if (typeof motionCtor === "undefined" && !("ondevicemotion" in window)) {
+      return "unsupported";
+    }
+
+    if (typeof motionCtor?.requestPermission !== "function") {
+      return "granted";
+    }
+
+    return motionCtor.requestPermission();
+  }
+
+  function attachMotionListener() {
+    if (typeof window === "undefined" || motionHandlerRef.current) {
+      return;
+    }
+
+    const handleMotion = (event) => {
+      const linear = event.acceleration;
+      const raw = event.accelerationIncludingGravity || linear || {};
+      const rawX = Number(raw.x ?? 0);
+      const rawY = Number(raw.y ?? 0);
+      const rawZ = Number(raw.z ?? 0);
+
+      let filteredX = 0;
+      let filteredY = 0;
+      let filteredZ = 0;
+
+      if (
+        linear &&
+        typeof linear.x === "number" &&
+        typeof linear.y === "number" &&
+        typeof linear.z === "number"
+      ) {
+        filteredX = Number(linear.x ?? 0);
+        filteredY = Number(linear.y ?? 0);
+        filteredZ = Number(linear.z ?? 0);
+      } else {
+        gravityRef.current = {
+          x: (0.88 * gravityRef.current.x) + (0.12 * rawX),
+          y: (0.88 * gravityRef.current.y) + (0.12 * rawY),
+          z: (0.88 * gravityRef.current.z) + (0.12 * rawZ),
+        };
+        filteredX = rawX - gravityRef.current.x;
+        filteredY = rawY - gravityRef.current.y;
+        filteredZ = rawZ - gravityRef.current.z;
+      }
+
+      const magnitude = Math.sqrt((filteredX ** 2) + (filteredY ** 2) + (filteredZ ** 2));
+      setAccelMagnitude(magnitude);
+
+      if (waitingForBumpRef.current && !bumpTriggeredRef.current && magnitude >= bumpThresholdRef.current) {
+        bumpTriggeredRef.current = true;
+        void captureBurst("bump");
+      }
+    };
+
+    motionHandlerRef.current = handleMotion;
+    window.addEventListener("devicemotion", handleMotion);
+  }
+
+  async function enableBumpTrigger() {
+    const permission = await requestMotionPermission();
+    setBumpPermissionStatus(permission);
+
+    if (permission === "denied") {
+      setCameraStatus("Motion permission denied. Use timed burst or allow motion access.");
+      return;
+    }
+
+    if (permission === "unsupported") {
+      setCameraStatus("This device/browser does not expose motion events.");
+      return;
+    }
+
+    attachMotionListener();
+    setBumpEnabled(true);
+    setCameraStatus("Bump trigger enabled. Arm a bump burst, then tap the phone to trigger capture.");
+  }
+
+  function drawCurrentVideoFrame(width, height) {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video || !canvas || video.readyState < 2) {
+      return "";
+    }
+
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    if (!context) {
+      return "";
+    }
+
+    context.save();
+    context.translate(width, 0);
+    context.scale(-1, 1);
+    context.drawImage(video, 0, 0, width, height);
+    context.restore();
+    return canvas.toDataURL("image/jpeg", 0.92);
   }
 
   async function startCamera() {
@@ -364,29 +541,119 @@ export default function CalibrationScreen() {
 
     const width = video.videoWidth || 1280;
     const height = video.videoHeight || 720;
-    canvas.width = width;
-    canvas.height = height;
-
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) {
+    const photo = drawCurrentVideoFrame(width, height);
+    if (!photo) {
+      setCameraStatus("Unable to capture the current frame.");
       return;
     }
-
-    context.save();
-    context.translate(width, 0);
-    context.scale(-1, 1);
-    context.drawImage(video, 0, 0, width, height);
-    context.restore();
-
-    const photo = canvas.toDataURL("image/jpeg", 0.92);
     setCapturedPhoto(photo);
     setCameraStatus("Timed capture complete.");
     setCaptureReview(buildCaptureReview(metrics));
   }
 
-  function startTimedCapture() {
+  async function saveBurstToDisk(frames, bestFrameIndex, mode) {
+    setBurstSaveStatus("Saving photoburst to test_captures...");
+
+    try {
+      const sessionId = `phone-burst-${new Date().toISOString().replace(/[:.]/g, "-")}`;
+      const response = await fetch("/api/phone-photoburst", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          sessionId,
+          triggerMode: mode,
+          threshold: bumpThreshold,
+          countdownSeconds: BURST_COUNTDOWN_SECONDS,
+          frameIntervalMs: BURST_FRAME_INTERVAL_MS,
+          bestFrameIndex: bestFrameIndex + 1,
+          metrics: snapshotMetrics(metricsRef.current),
+          frames,
+        }),
+      });
+
+      const payload = await response.json();
+      if (!response.ok || !payload?.ok) {
+        throw new Error(payload?.error || `save failed: ${response.status}`);
+      }
+
+      setBurstSession(payload);
+      setBurstSaveStatus(`Saved ${payload.frameCount} frames to ${payload.directory}`);
+    } catch (error) {
+      setBurstSaveStatus(error instanceof Error ? error.message : "Photoburst save failed.");
+    }
+  }
+
+  async function captureBurst(mode) {
+    const video = videoRef.current;
+    if (!video || video.readyState < 2) {
+      setCameraStatus("Camera frame is not ready yet.");
+      setWaitingForBump(false);
+      return;
+    }
+
+    setWaitingForBump(false);
+    setTriggerMode(mode);
+    setCameraStatus(mode === "bump" ? "Bump detected. Capturing burst..." : "Capturing timed burst...");
+
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+    const frames = [];
+
+    for (let index = 0; index < BURST_FRAME_COUNT; index += 1) {
+      const dataUrl = drawCurrentVideoFrame(width, height);
+      if (dataUrl) {
+        frames.push({
+          capturedAt: new Date().toISOString(),
+          dataUrl,
+          metrics: snapshotMetrics(metricsRef.current),
+        });
+      }
+
+      if (index < BURST_FRAME_COUNT - 1) {
+        await new Promise((resolve) => {
+          burstTimerRef.current = window.setTimeout(resolve, BURST_FRAME_INTERVAL_MS);
+        });
+      }
+    }
+
+    burstTimerRef.current = null;
+
+    if (!frames.length) {
+      setCameraStatus("No burst frames were captured.");
+      return;
+    }
+
+    setBurstFrames(frames);
+
+    let bestFrameIndex = 0;
+    let bestConfidence = -1;
+
+    frames.forEach((frame, index) => {
+      const score = Number(frame?.metrics?.confidence ?? 0);
+      if (score > bestConfidence) {
+        bestConfidence = score;
+        bestFrameIndex = index;
+      }
+    });
+
+    const bestFrame = frames[bestFrameIndex];
+    setCapturedPhoto(bestFrame.dataUrl);
+    setCaptureReview(buildCaptureReview(metricsRef.current));
+    setCameraStatus(`${mode === "bump" ? "Bump" : "Timed"} photoburst captured. Best frame ${bestFrameIndex + 1} selected.`);
+
+    await saveBurstToDisk(frames, bestFrameIndex, mode);
+  }
+
+  function startTimedCapture(nextMode = "timed") {
     if (!isRunning) {
       setCameraStatus("Start the rear camera first.");
+      return;
+    }
+
+    if (nextMode === "bump" && !bumpEnabled) {
+      setCameraStatus("Enable the bump trigger first.");
       return;
     }
 
@@ -395,9 +662,22 @@ export default function CalibrationScreen() {
       countdownTimerRef.current = null;
     }
 
-    let remaining = 4;
+    if (burstTimerRef.current) {
+      window.clearTimeout(burstTimerRef.current);
+      burstTimerRef.current = null;
+    }
+
+    bumpTriggeredRef.current = false;
+    setWaitingForBump(false);
+    setTriggerMode(nextMode);
+
+    let remaining = BURST_COUNTDOWN_SECONDS;
     setCountdown(remaining);
-    setCameraStatus("Timed capture armed. Get the phone and card into position.");
+    setCameraStatus(
+      nextMode === "bump"
+        ? "Bump photoburst armed. Set the phone, then bump it after the countdown."
+        : "Timed photoburst armed. Get the phone and card into position."
+    );
 
     countdownTimerRef.current = window.setInterval(() => {
       remaining -= 1;
@@ -405,12 +685,18 @@ export default function CalibrationScreen() {
         window.clearInterval(countdownTimerRef.current);
         countdownTimerRef.current = null;
         setCountdown(0);
-        captureStillFrame();
+        if (nextMode === "bump") {
+          setWaitingForBump(true);
+          setCameraStatus(`Waiting for bump trigger above ${formatPrecise(bumpThreshold)}g.`);
+          return;
+        }
+
+        void captureBurst("timed");
         return;
       }
 
       setCountdown(remaining);
-      setCameraStatus(`Capturing in ${remaining}...`);
+      setCameraStatus(nextMode === "bump" ? `Bump arm in ${remaining}...` : `Burst in ${remaining}...`);
     }, 1000);
   }
 
@@ -599,19 +885,7 @@ export default function CalibrationScreen() {
   function saveSnapshot() {
     const nextSnapshot = buildCalibrationSnapshot({
       savedAt: new Date().toISOString(),
-      metrics: {
-        brightness: Number(formatNumber(metrics.brightness)),
-        sharpness: Number(formatNumber(metrics.sharpness)),
-        motion: Number(formatNumber(metrics.motion)),
-        areaRatio: Number(formatNumber(metrics.areaRatio)),
-        aspectRatio: Number(formatNumber(metrics.aspectRatio)),
-        centerX: Number(formatNumber(metrics.centerX)),
-        centerY: Number(formatNumber(metrics.centerY)),
-        boxWidthRatio: Number(formatNumber(metrics.boxWidthRatio)),
-        boxHeightRatio: Number(formatNumber(metrics.boxHeightRatio)),
-        rotation: Number(formatNumber(metrics.rotation)),
-        confidence: Number(formatNumber(metrics.confidence * 100)),
-      },
+      metrics: snapshotMetrics(metrics),
       tracking: trackingLocked && trackingLockRef.current
         ? {
             locked: true,
@@ -682,14 +956,51 @@ export default function CalibrationScreen() {
             <button type="button" className="action-button" onClick={isRunning ? stopCamera : startCamera}>
               {isRunning ? "Stop Camera" : "Start Rear Camera"}
             </button>
-            <button type="button" className="action-button" onClick={startTimedCapture} disabled={!isRunning || countdown > 0}>
-              {countdown > 0 ? `Photo in ${countdown}` : "Take Photo In 4 Seconds"}
+            <button type="button" className="action-button" onClick={() => startTimedCapture("timed")} disabled={!isRunning || countdown > 0 || waitingForBump}>
+              {countdown > 0 && triggerMode === "timed" ? `Burst in ${countdown}` : "Start Timed Photoburst"}
+            </button>
+            <button
+              type="button"
+              className="action-button"
+              onClick={() => startTimedCapture("bump")}
+              disabled={!isRunning || !bumpEnabled || countdown > 0 || waitingForBump}
+            >
+              {countdown > 0 && triggerMode === "bump" ? `Arm bump in ${countdown}` : "Arm Bump Photoburst"}
             </button>
             <button type="button" className="ghost-button" onClick={saveSnapshot} disabled={!metrics.foundCard}>
               Save Calibration Snapshot
             </button>
           </div>
           <p className="helper-copy">{cameraStatus}</p>
+          <div className="burstControlCard">
+            <div className="burstControlHeader">
+              <strong>Phone photoburst</strong>
+              <span className="helper-copy">{BURST_FRAME_COUNT} frames at {BURST_FRAME_INTERVAL_MS} ms</span>
+            </div>
+            <div className="buttonRow compactButtonRow">
+              <button type="button" className="ghost-button" onClick={enableBumpTrigger} disabled={!isRunning || bumpEnabled}>
+                {bumpEnabled ? "Bump Trigger Ready" : "Enable Bump Trigger"}
+              </button>
+            </div>
+            <label className="sliderField">
+              <span>Bump threshold</span>
+              <input
+                type="range"
+                min="0.8"
+                max="4"
+                step="0.1"
+                value={bumpThreshold}
+                onChange={(event) => setBumpThreshold(Number(event.target.value))}
+                disabled={!bumpEnabled}
+              />
+              <strong>{formatPrecise(bumpThreshold)}g</strong>
+            </label>
+            <div className="statusRow">
+              <span className="helper-copy">Motion: {formatPrecise(accelMagnitude)}g</span>
+              <span className="helper-copy">Permission: {bumpPermissionStatus.replaceAll("_", " ")}</span>
+            </div>
+            <p className="helper-copy">{burstSaveStatus}</p>
+          </div>
           {permissionError ? <div className="feedback-banner error">{permissionError}</div> : null}
           {!isSecureContextState ? (
             <div className="feedback-banner error">
@@ -845,6 +1156,14 @@ export default function CalibrationScreen() {
               <div className="capturePreviewWrap">
                 <img src={capturedPhoto} alt="Latest calibration capture" className="capturePreview" />
               </div>
+              {burstFrames.length ? (
+                <div className="muted-panel">
+                  <strong>Photoburst session</strong>
+                  <p className="helper-copy">
+                    {burstFrames.length} frames captured via {triggerMode}. {burstSession?.directory ? `Saved to ${burstSession.directory}.` : "Session not written yet."}
+                  </p>
+                </div>
+              ) : null}
               <div className={`reviewCard reviewCard${captureReview.readiness === "ready" ? "Ready" : captureReview.readiness === "borderline" ? "Borderline" : "NotReady"}`}>
                 <div className="reviewHeader">
                   <strong>{captureReview.summary}</strong>
@@ -861,7 +1180,7 @@ export default function CalibrationScreen() {
           ) : (
             <div className="muted-panel">
               <p className="helper-copy">
-                Use the 4-second timer, set the phone face down in performance position, then move the card into the capture lane before the shutter fires.
+                Start the rear camera, then use either the timed burst or the bump-triggered burst. Captured frames will be written into `test_captures` for real extraction testing.
               </p>
             </div>
           )}
@@ -1047,6 +1366,49 @@ export default function CalibrationScreen() {
         .confidencePillWarn {
           background: #fdebd8;
           color: #9a4f08;
+        }
+
+        .burstControlCard {
+          margin-top: 12px;
+          padding: 14px 16px;
+          border-radius: 18px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: rgba(13, 18, 27, 0.7);
+          display: grid;
+          gap: 12px;
+        }
+
+        .burstControlHeader {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .compactButtonRow {
+          gap: 10px;
+        }
+
+        .sliderField {
+          display: grid;
+          gap: 8px;
+        }
+
+        .sliderField span {
+          font-size: 13px;
+          font-weight: 700;
+        }
+
+        .sliderField input {
+          width: 100%;
+        }
+
+        .statusRow {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+          flex-wrap: wrap;
         }
 
         @media (max-width: 720px) {
