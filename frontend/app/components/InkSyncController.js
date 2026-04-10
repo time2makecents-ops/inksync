@@ -705,6 +705,112 @@ function WorkspacePreview({ title, subtitle, imageSrc, fallback }) {
   );
 }
 
+function RunChecklist({ calibrationReady, overlayReady, revealReady, precheckResult, isArmed, pipelineState }) {
+  const items = [
+    {
+      label: "Tracking snapshot saved",
+      done: calibrationReady,
+    },
+    {
+      label: "Overlay alignment saved",
+      done: overlayReady,
+    },
+    {
+      label: "Reveal alignment saved",
+      done: revealReady,
+    },
+    {
+      label: "Lighting precheck passed",
+      done: precheckResult === "YES",
+    },
+    {
+      label: "Run is armed",
+      done: isArmed,
+    },
+    {
+      label: "Controller reached ready state",
+      done: pipelineState === "ready" || pipelineState === "revealing" || pipelineState === "complete",
+    },
+  ];
+
+  return (
+    <section className="card">
+      <div className="cardHeader">
+        <div>
+          <div className="eyebrow">Run Checklist</div>
+          <h3>Operator gate</h3>
+        </div>
+      </div>
+
+      <div className="checklist">
+        {items.map((item) => (
+          <div key={item.label} className={`checkItem ${item.done ? "checkItemDone" : ""}`}>
+            <span className="checkDot" />
+            <span>{item.label}</span>
+          </div>
+        ))}
+      </div>
+
+      <style jsx>{`
+        .card {
+          border-radius: 18px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          background: linear-gradient(180deg, rgba(21, 25, 33, 0.94), rgba(11, 14, 19, 0.98));
+          padding: 16px;
+          box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+        }
+
+        .cardHeader {
+          margin-bottom: 14px;
+        }
+
+        .eyebrow {
+          color: #89a4d1;
+          font-size: 11px;
+          font-weight: 800;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        h3 {
+          margin: 6px 0 0;
+          font-size: 20px;
+          color: #f3f6fc;
+        }
+
+        .checklist {
+          display: grid;
+          gap: 10px;
+        }
+
+        .checkItem {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 10px 12px;
+          border-radius: 12px;
+          background: rgba(255, 255, 255, 0.03);
+          color: #c7d2e7;
+          font-size: 13px;
+        }
+
+        .checkItemDone {
+          color: #baf1ca;
+          background: rgba(42, 181, 84, 0.08);
+        }
+
+        .checkDot {
+          width: 10px;
+          height: 10px;
+          border-radius: 999px;
+          background: currentColor;
+          flex: none;
+        }
+      `}</style>
+    </section>
+  );
+}
+
 export default function InkSyncController() {
   const router = useRouter();
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -859,7 +965,7 @@ export default function InkSyncController() {
     setPipelineState("armed");
   }
 
-  function simulateTrigger() {
+  function beginRunSequence() {
     if (!isArmed) return;
     setLastTriggerAt(new Date().toLocaleTimeString());
     setPipelineState("triggered");
@@ -936,6 +1042,15 @@ export default function InkSyncController() {
             onOpenCalibration={() => router.push("/calibration")}
           />
 
+          <RunChecklist
+            calibrationReady={calibrationReady}
+            overlayReady={overlayReady}
+            revealReady={revealReady}
+            precheckResult={precheckResult}
+            isArmed={isArmed}
+            pipelineState={pipelineState}
+          />
+
           <section className="card">
             <div className="cardHeader">
               <div>
@@ -955,21 +1070,21 @@ export default function InkSyncController() {
               <button type="button" className="actionButton" onClick={armSystem}>
                 <span className="actionTitle">Arm Trick</span>
                 <span className="actionCopy">
-                  Prepare for hidden accelerometer trigger.
+                  Lock the run once the controller passes the checklist.
                 </span>
               </button>
 
-              <button type="button" className="actionButton" onClick={simulateTrigger}>
-                <span className="actionTitle">Simulate Trigger</span>
+              <button type="button" className="actionButton" onClick={beginRunSequence} disabled={!isArmed}>
+                <span className="actionTitle">Begin Run Sequence</span>
                 <span className="actionCopy">
-                  Debug shortcut for the bump event.
+                  Start the trigger, countdown, capture, and processing chain from the armed state.
                 </span>
               </button>
 
-              <button type="button" className="actionButton" onClick={startReveal}>
+              <button type="button" className="actionButton" onClick={startReveal} disabled={pipelineState !== "ready"}>
                 <span className="actionTitle">Start Reveal</span>
                 <span className="actionCopy">
-                  Advance to the signature transfer moment.
+                  Advance only after the run reaches the ready state.
                 </span>
               </button>
 
