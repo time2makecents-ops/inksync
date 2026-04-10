@@ -13,7 +13,7 @@ import {
   subscribeToStoredJson,
 } from "../../lib/userPreferences";
 
-const DEFAULT_SECRET_CODE = "5317";
+const DEFAULT_SECRET_CODE = "6669";
 
 const PIPELINE_STATES = [
   "locked",
