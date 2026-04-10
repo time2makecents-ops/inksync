@@ -295,6 +295,8 @@ function DebugPanel({
   captureCount,
   selectedFrameIndex,
   setSelectedFrameIndex,
+  selectedOverlayFrameId,
+  selectedRevealFrameId,
   extractionConfidence,
   notes,
   setNotes,
@@ -348,6 +350,8 @@ function DebugPanel({
               Extraction confidence: {(extractionConfidence * 100).toFixed(0)}%
             </div>
             <div className="metric">Captured frames: {captureCount}</div>
+            <div className="metric">Overlay frame: {selectedOverlayFrameId}</div>
+            <div className="metric">Reveal frame: {selectedRevealFrameId}</div>
 
             <label className="field">
               <span>Selected frame index</span>
@@ -715,9 +719,7 @@ export default function InkSyncController() {
   const [accelMagnitude, setAccelMagnitude] = useState(0);
   const [bumpThreshold, setBumpThreshold] = useState(1.8);
   const [lastTriggerAt, setLastTriggerAt] = useState("");
-  const [captureCount, setCaptureCount] = useState(0);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState(0);
-  const [extractionConfidence] = useState(0.82);
   const [notes, setNotes] = useState("");
   const [calibrationSnapshot, setCalibrationSnapshot] = useState(null);
   const [overlayCalibration, setOverlayCalibration] = useState(null);
@@ -725,6 +727,15 @@ export default function InkSyncController() {
   const calibrationReady = Boolean(calibrationSnapshot?.savedAt);
   const overlayReady = Boolean(overlayCalibration?.activeFrame && Object.keys(overlayCalibration?.frames ?? {}).length);
   const revealReady = Boolean(revealCalibration?.activeFrame && Object.keys(revealCalibration?.frames ?? {}).length);
+  const overlayFrameIds = useMemo(() => Object.keys(overlayCalibration?.frames ?? {}), [overlayCalibration]);
+  const revealFrameIds = useMemo(() => Object.keys(revealCalibration?.frames ?? {}), [revealCalibration]);
+  const captureCount = overlayFrameIds.length;
+  const extractionConfidence = useMemo(
+    () => ((calibrationSnapshot?.captureReview?.score ?? 0) / 100),
+    [calibrationSnapshot]
+  );
+  const selectedOverlayFrameId = overlayFrameIds[selectedFrameIndex] ?? overlayCalibration?.activeFrame ?? "none";
+  const selectedRevealFrameId = revealFrameIds[selectedFrameIndex] ?? revealCalibration?.activeFrame ?? "none";
 
   useEffect(() => {
     setPipelineState(isUnlocked ? "idle" : "locked");
@@ -778,10 +789,17 @@ export default function InkSyncController() {
   }, [isUnlocked, pipelineState, countdownRemaining]);
 
   useEffect(() => {
+    if (selectedFrameIndex < captureCount) {
+      return;
+    }
+
+    setSelectedFrameIndex(Math.max(0, captureCount - 1));
+  }, [captureCount, selectedFrameIndex]);
+
+  useEffect(() => {
     if (pipelineState !== "capturing") return;
 
     const timer = window.setTimeout(() => {
-      setCaptureCount(3);
       setPipelineState("processing");
     }, 900);
 
@@ -827,7 +845,7 @@ export default function InkSyncController() {
     window.setTimeout(() => {
       const passed = extractionConfidence >= 0.75 && overlayReady && revealReady;
       setPrecheckResult(passed ? "YES" : "NO");
-      setPipelineState("idle");
+      setPipelineState(passed ? "idle" : "error");
     }, 700);
   }
 
@@ -869,7 +887,6 @@ export default function InkSyncController() {
     setPrecheckResult("UNKNOWN");
     setIsArmed(false);
     setCountdownRemaining(5);
-    setCaptureCount(0);
     setSelectedFrameIndex(0);
   }
 
@@ -982,6 +999,8 @@ export default function InkSyncController() {
             captureCount={captureCount}
             selectedFrameIndex={selectedFrameIndex}
             setSelectedFrameIndex={setSelectedFrameIndex}
+            selectedOverlayFrameId={selectedOverlayFrameId}
+            selectedRevealFrameId={selectedRevealFrameId}
             extractionConfidence={extractionConfidence}
             notes={notes}
             setNotes={setNotes}
